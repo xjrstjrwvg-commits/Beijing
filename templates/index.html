@@ -2,41 +2,94 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultra Engine Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>極・ULTRA ENGINE Pro</title>
+    <!-- Tailwindを確実に読み込むための記述 -->
     <script src="https://tailwindcss.com"></script>
     <style>
-        .glass { background: white; border: 1px solid #e2e8f0; border-radius: 24px; padding: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        .dark .glass { background: #0f172a; border-color: #1e293b; color: white; }
+        /* iPhoneのSafariでも崩れないための補正 */
+        body { -webkit-text-size-adjust: 100%; }
+        .glass { 
+            background: white; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 28px; 
+            padding: 24px; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); 
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background-color: #020617; color: #f1f5f9; }
+            .glass { background-color: #0f172a; border-color: #1e293b; }
+        }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-5">
-    <div class="max-w-md mx-auto space-y-4">
-        <h1 class="text-2xl font-black text-blue-600 italic uppercase">Ultra Engine Pro</h1>
+<body class="bg-slate-50 p-4 flex justify-center items-start min-h-screen">
+    <div class="w-full max-w-md space-y-6">
         
-        <div class="glass space-y-4">
-            <input id="sw" placeholder="開始単語" class="w-full p-3 bg-slate-100 dark:bg-slate-800 rounded-xl outline-none border-none font-bold">
-            <button onclick="runTest()" id="btn" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg">EXPLORE</button>
-            <div id="res" class="text-center font-bold text-blue-500"></div>
+        <!-- ヘッダー -->
+        <header class="flex justify-between items-center py-2">
+            <h1 class="text-2xl font-black italic text-blue-600 uppercase tracking-tighter">Ultra Engine</h1>
+            <div class="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 px-3 py-1 rounded-full uppercase">Pro Edition</div>
+        </header>
+
+        <!-- メインカード -->
+        <div class="glass space-y-5">
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-blue-500 uppercase ml-1">Start Word</label>
+                <input id="sw" placeholder="開始単語を入力" class="w-full p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold transition-all">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Start Char</label>
+                    <input id="sc" placeholder="開始字" class="w-full p-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">End Char</label>
+                    <input id="ec" placeholder="終了字" class="w-full p-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">
+                </div>
+            </div>
+
+            <button onclick="runTest()" id="btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest text-sm">
+                Explore
+            </button>
+
+            <div id="res" class="text-center py-2 hidden">
+                <div id="status-msg" class="text-[11px] font-black text-emerald-500 uppercase"></div>
+            </div>
         </div>
+
+        <!-- 結果表示エリア -->
+        <div id="results-list" class="space-y-3">
+            <!-- ここに結果が追加されます -->
+        </div>
+
     </div>
 
     <script>
-        // iPhoneで壊れやすい記号を極力排除したテスト用スクリプト
         async function runTest() {
             const btn = document.getElementById('btn');
             const res = document.getElementById('res');
-            btn.innerText = "LOADING...";
+            const status = document.getElementById('status-msg');
             
+            btn.innerText = "EXPLORING...";
+            btn.disabled = true;
+
             try {
-                // app.pyが生きているか確認
                 const r = await fetch('/get_dictionary');
+                if (!r.ok) throw new Error('Network error');
                 const d = await r.json();
-                res.innerText = "SUCCESS: " + d.country.length + " WORDS LOADED";
+                
+                res.classList.remove('hidden');
+                status.innerText = "Success: " + (d.country.length + d.capital.length) + " words available";
+                
             } catch (e) {
-                res.innerText = "ERROR: " + e.message;
+                res.classList.remove('hidden');
+                status.innerText = "Error: Connection failed";
+                status.className = "text-[11px] font-black text-rose-500 uppercase";
+            } finally {
+                btn.innerText = "Explore";
+                btn.disabled = false;
             }
-            btn.innerText = "EXPLORE";
         }
     </script>
 </body>
