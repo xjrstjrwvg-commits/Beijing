@@ -2,22 +2,325 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>極・ULTRA ENGINE Pro</title>
-    <script src="https://tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .glass { @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl; }
+        html, body { overflow-x: hidden; position: relative; width: 100%; touch-action: pan-y; }
         .dark { color-scheme: dark; }
+        .glass { @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl; }
+        input, select, textarea { @apply bg-slate-100 dark:bg-slate-800 p-3 rounded-xl text-sm outline-none focus:ring-1 ring-blue-500 font-bold; }
+        .step-btn { @apply bg-slate-200 dark:bg-slate-700 w-9 h-9 flex items-center justify-center rounded-lg font-black active:scale-90 transition-all text-sm; }
+        ::-webkit-scrollbar { display: none; }
+        .btn-white { background-color: white; color: #334155; border-color: #e2e8f0; }
+        .dark .btn-white { background-color: #1e293b; color: #f1f5f9; border-color: #334155; }
+        .custom-scroll { max-height: 300px; overflow-y: auto; scrollbar-width: none; }
+        summary { list-style: none; cursor: pointer; }
+        summary::-webkit-details-marker { display: none; }
+
+        /* 詳細設定内の入力欄を強調 */
+        details input, details select, details textarea {
+            @apply border-2 border-slate-300 dark:border-slate-600 py-4 px-4 my-1;
+            background-color: rgba(255, 255, 255, 0.7);
+        }
+        .dark details input, .dark details select, .dark details textarea {
+            background-color: rgba(30, 41, 59, 0.7);
+        }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-3">
-    <div class="max-w-md mx-auto">
-        <h1 class="text-2xl font-black text-blue-600">Ultra Engine Pro</h1>
-        <p class="text-sm text-slate-500">正常に読み込まれると、この文字はグレーになり、上のタイトルは青く大きくなります。</p>
-        
-        <div class="glass p-5 rounded-3xl mt-5">
-            <p>この枠がカード状に見えていれば、デザインは成功です！</p>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-3 pb-24" onchange="saveSettings()" oninput="saveSettings()">
+    <div class="max-w-md mx-auto space-y-3">
+        <header class="flex justify-between items-center py-1">
+            <div class="flex items-center gap-3">
+                <h1 class="text-xl font-black italic text-blue-600 uppercase tracking-tighter">Ultra Engine</h1>
+                <button onclick="toggleDarkMode()" class="text-xl p-1 hover:scale-110 transition-transform">🌗</button>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="resetSettings()" class="bg-rose-100 dark:bg-rose-900/30 text-rose-600 px-4 py-2 rounded-full text-[10px] font-bold uppercase">Reset</button>
+                <button onclick="copyAll()" id="allCopyBtn" class="bg-slate-200 dark:bg-slate-800 px-4 py-2 rounded-full text-[10px] font-bold uppercase">All Copy</button>
+            </div>
+        </header>
+
+        <div class="glass rounded-[28px] p-5 space-y-4 shadow-2xl">
+            <input id="sw" placeholder="開始単語" class="w-full">
+            <div class="grid grid-cols-3 gap-2">
+                <input id="sc" placeholder="開始字" class="w-full">
+                <input id="mc" placeholder="必須文字" class="w-full">
+                <input id="ec" placeholder="終了字" class="w-full">
+            </div>
+
+            <!-- 詳細設定の折り畳み -->
+            <details class="group border border-slate-200 dark:border-slate-700 rounded-2xl p-2 bg-slate-50/50 dark:bg-slate-800/20">
+                <summary class="flex justify-center items-center py-3 cursor-pointer">
+                    <span class="text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest group-open:hidden">＋ 詳細設定を表示</span>
+                    <span class="text-[11px] font-black text-rose-500 uppercase tracking-widest hidden group-open:block">－ 詳細設定を閉じる</span>
+                </summary>
+                
+                <div class="space-y-5 pt-2 pb-4 px-1">
+                    <div class="grid grid-cols-2 gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-blue-500 uppercase ml-1">全語開始字</label>
+                            <input id="asc" placeholder="ア,カ" class="w-full">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-blue-500 uppercase ml-1">全語終了字</label>
+                            <input id="aec" placeholder="ン,イ" class="w-full">
+                        </div>
+                    </div>
+
+                    <div class="space-y-1 border-t border-slate-200 dark:border-slate-700 pt-4">
+                        <label class="text-[10px] font-bold text-emerald-500 uppercase ml-1">使える文字チェックリスト</label>
+                        <input id="valid_chars" placeholder="アイウエオ (空欄で全許可)" class="w-full">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-1 tracking-widest">グループ必須 (:n可)</label>
+                            <textarea id="gc" placeholder="アメリカ,イギリス:2" class="w-full h-20 resize-none text-[10px]"></textarea>
+                        </div>
+                        <div class="space-y-1 text-orange-600">
+                            <label class="text-[10px] font-bold uppercase ml-1 tracking-widest">選択必須 (:n可)</label>
+                            <textarea id="cc" placeholder="ン,ン:2" class="w-full h-20 resize-none text-[10px]"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">使用不可文字</label>
+                            <input id="exc" placeholder="ン,ガ" class="w-full">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-rose-400 uppercase ml-1">禁止開始文字</label>
+                            <input id="bsc" placeholder="ガ,ザ" class="w-full">
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 border-t border-slate-200 dark:border-slate-700 pt-4">
+                        <div class="flex justify-between items-center">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">50音ずらし (物理位置連動)</label>
+                            <input type="checkbox" id="use_shift" class="w-6 h-6 cursor-pointer accent-blue-600">
+                        </div>
+                        <div class="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-xl">
+                            <div class="flex gap-4 font-bold text-[11px]">
+                                <label class="cursor-pointer flex items-center gap-2"><input type="radio" name="shift_mode" value="abs" checked class="w-4 h-4"> ±</label>
+                                <label class="cursor-pointer flex items-center gap-2"><input type="radio" name="shift_mode" value="normal" class="w-4 h-4"> 通常</label>
+                            </div>
+                            <div class="flex items-center gap-3 ml-auto">
+                                <button type="button" onclick="adjustVal('ks_abs',-1)" class="step-btn">-</button>
+                                <input type="number" id="ks_abs" value="1" class="w-12 text-center bg-transparent border-none text-sm font-bold">
+                                <button type="button" onclick="adjustVal('ks_abs',1)" class="step-btn">+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ソート順</label>
+                            <select id="sort_mode" class="w-full text-[11px] font-bold">
+                                <option value="default">検索順</option>
+                                <option value="kana">50音順</option>
+                                <option value="len_asc">文字数少ない順</option>
+                                <option value="len_desc">文字数多い順</option>
+                                <option value="random">ランダム</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">適用範囲</label>
+                            <select id="unify_scope" class="w-full text-[11px] font-bold">
+                                <option value="all">すべて</option>
+                                <option value="conn">接続のみ</option>
+                                <option value="filter">制約のみ</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-3 text-[11px] font-bold border-t border-slate-200 dark:border-slate-700 pt-4">
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="allow_daku" class="w-4 h-4"> 濁点OK</label>
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="allow_handaku" class="w-4 h-4"> 半濁点OK</label>
+                        <label class="flex items-center gap-2 cursor-pointer text-indigo-600"><input type="checkbox" id="auto_recovery" class="w-4 h-4"> 遡り接続</label>
+                        <label class="flex items-center gap-2 cursor-pointer text-orange-600"><input type="checkbox" id="unify_small" class="w-4 h-4"> 大=小</label>
+                        <label class="flex items-center gap-2 cursor-pointer text-blue-600"><input type="checkbox" id="rt" class="w-4 h-4"> 牛耕</label>
+                        <label class="flex items-center gap-2 cursor-pointer text-blue-600"><input type="checkbox" id="once" class="w-4 h-4"> 単一制約</label>
+                        <label class="flex items-center gap-2 cursor-pointer text-rose-600"><input type="checkbox" id="char_limit_mode" class="w-4 h-4"> 重複禁止</label>
+                        <label class="flex items-center gap-2 cursor-pointer text-rose-500"><input type="checkbox" id="exclude_conjugate" class="w-4 h-4"> 共役排除</label>
+                    </div>
+
+                    <div class="space-y-1 text-right border-t border-slate-200 dark:border-slate-700 pt-4">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-right block">物理ずらし / 文字計</label>
+                        <div class="flex justify-end gap-3">
+                            <input type="number" id="ps" value="0" class="w-14 text-center text-sm font-bold border-2">
+                            <input type="number" id="ttl" placeholder="計" class="w-16 text-center text-sm font-bold border-2">
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <div class="grid grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800 pt-3">
+                <div class="space-y-1">
+                    <label class="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">文字数構成</label>
+                    <select id="len_mode" class="w-full text-[10px] font-bold">
+                        <option value="free">自由</option>
+                        <option value="same">すべて同じ</option>
+                        <option value="diff">すべてバラバラ</option>
+                    </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-right block">コピー制限数</label>
+                    <input type="number" id="copy_limit" value="10" class="w-full text-center text-xs py-2">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800 pt-3">
+                <div class="space-y-1">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">単語数</label>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="adjustVal('ml',-1)" class="step-btn">-</button>
+                        <input type="number" id="ml" value="5" class="w-10 text-center bg-transparent border-none text-sm font-bold">
+                        <button type="button" onclick="adjustVal('ml',1)" class="step-btn">+</button>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end pt-4">
+                    <div class="flex gap-2">
+                       <button onclick="copyTopN()" class="bg-blue-600/10 text-blue-600 px-4 py-3 rounded-2xl text-[10px] font-black uppercase">Top N</button>
+                       <button type="button" onclick="run()" id="btn" class="bg-blue-600 text-white font-black px-8 py-3.5 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest">Explore</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+                <div class="flex gap-3 text-[11px] font-bold">
+                    <label class="cursor-pointer text-blue-500"><input type="checkbox" name="cat" value="country" checked onchange="loadDictionaryUI()"> 国</label>
+                    <label class="cursor-pointer text-blue-500"><input type="checkbox" name="cat" value="capital" onchange="loadDictionaryUI()"> 首都</label>
+                </div>
+            </div>
+            
+            <div id="stats" class="text-center text-[10px] font-bold text-blue-500 hidden uppercase py-1"></div>
         </div>
+        <div id="res" class="space-y-3 pb-20"></div>
     </div>
+
+    <!-- 辞書マネージャ -->
+    <div id="dict-manager" class="hidden fixed inset-0 z-50 bg-white dark:bg-slate-950 p-5 overflow-y-auto">
+        <button onclick="document.getElementById('dict-manager').classList.add('hidden')" class="mb-5 font-bold text-rose-500">CLOSE</button>
+        <div class="grid grid-cols-2 gap-2 mb-5">
+            <button onclick="bulkSet('white')" class="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl font-bold">全開放</button>
+            <button onclick="bulkSet('red')" class="bg-rose-100 dark:bg-rose-900/30 text-rose-600 p-3 rounded-xl font-bold">全禁止</button>
+        </div>
+        <div id="dict-list" class="grid grid-cols-2 gap-1"></div>
+    </div>
+    <button onclick="document.getElementById('dict-manager').classList.remove('hidden')" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest opacity-80 hover:opacity-100">Dictionary</button>
+
+    <script>
+        let currentRoutes = [];
+        let wordStates = {};
+
+        function to_katakana(text) { return text.replace(/[ぁ-ん]/g, s => String.fromCharCode(s.charCodeAt(0) + 0x60)); }
+        function toggleDarkMode() { document.documentElement.classList.toggle('dark'); saveSettings(); }
+        function getWordStyle(state) {
+            if (state === 'red') return "background-color: #f43f5e; color: white; border-color: #e11d48;";
+            if (state === 'blue') return "background-color: #2563eb; color: white; border-color: #1d4ed8;";
+            return ""; 
+        }
+
+        async function init() {
+            if (localStorage.ultraSettings) {
+                const s = JSON.parse(localStorage.ultraSettings);
+                const fields = ['sw','sc','asc','mc','ec','aec','exc','bsc','ml','ps','ks_abs','ttl','gc','cc','sort_mode','unify_scope','copy_limit','valid_chars','len_mode'];
+                fields.forEach(f => { if(s[f] !== undefined && document.getElementById(f)) document.getElementById(f).value = s[f]; });
+                const checks = ['allow_daku','allow_handaku','char_limit_mode','auto_recovery','unify_small','rt','once','use_shift','exclude_conjugate'];
+                checks.forEach(f => { if(s[f] !== undefined && document.getElementById(f)) document.getElementById(f).checked = s[f]; });
+                if (s.dark_mode) document.documentElement.classList.add('dark');
+                if (s.wordStates) wordStates = s.wordStates;
+            }
+            await loadDictionaryUI();
+        }
+
+        async function loadDictionaryUI() {
+            const r = await fetch('/get_dictionary');
+            const dict = await r.json();
+            const cats = Array.from(document.querySelectorAll('input[name="cat"]:checked')).map(c => c.value);
+            let words = [];
+            cats.forEach(c => words = words.concat(dict[c] || []));
+            words = Array.from(new Set(words)).sort();
+            document.getElementById('dict-list').innerHTML = words.map(w => {
+                const s = wordStates[w] || 'white';
+                return `<button onclick="toggleWordState(this, '${w}')" class="p-2 rounded-lg border text-[10px] font-bold ${s==='white'?'btn-white':''}" style="${getWordStyle(s)}">${w}</button>`;
+            }).join('');
+        }
+
+        function toggleWordState(btn, word) {
+            const states = { 'white': 'red', 'red': 'blue', 'blue': 'white' };
+            wordStates[word] = states[wordStates[word] || 'white'];
+            saveSettings();
+            loadDictionaryUI(); 
+        }
+
+        function bulkSet(state) {
+            const cats = Array.from(document.querySelectorAll('input[name="cat"]:checked')).map(c => c.value);
+            fetch('/get_dictionary').then(r => r.json()).then(dict => {
+                cats.forEach(c => {
+                    (dict[c] || []).forEach(w => { wordStates[w] = state; });
+                });
+                saveSettings();
+                loadDictionaryUI();
+            });
+        }
+
+        function saveSettings() {
+            const sm = document.querySelector('input[name="shift_mode"]:checked');
+            localStorage.ultraSettings = JSON.stringify({
+                sw: document.getElementById('sw').value, sc: document.getElementById('sc').value, asc: document.getElementById('asc').value,
+                mc: document.getElementById('mc').value, ec: document.getElementById('ec').value, aec: document.getElementById('aec').value,
+                exc: document.getElementById('exc').value, bsc: document.getElementById('bsc').value,
+                ml: document.getElementById('ml').value, ps: document.getElementById('ps').value, ks_abs: document.getElementById('ks_abs').value,
+                ttl: document.getElementById('ttl').value, valid_chars: document.getElementById('valid_chars').value,
+                len_mode: document.getElementById('len_mode').value, use_shift: document.getElementById('use_shift').checked,
+                exclude_conjugate: document.getElementById('exclude_conjugate').checked,
+                dark_mode: document.documentElement.classList.contains('dark'), wordStates: wordStates, shift_mode: sm ? sm.value : 'abs'
+            });
+        }
+
+        function resetSettings() { localStorage.removeItem('ultraSettings'); location.reload(); }
+        function adjustVal(id, delta) { const el = document.getElementById(id); el.value = Math.max(0, parseInt(el.value || 0) + delta); saveSettings(); }
+
+        async function run() {
+            const btn = document.getElementById('btn'); btn.innerText = "EXPLORING..."; btn.disabled = true;
+            const body = {
+                start_word: document.getElementById('sw').value, start_char: document.getElementById('sc').value,
+                all_start_char: document.getElementById('asc').value, must_char: document.getElementById('mc').value,
+                end_char: document.getElementById('ec').value, all_end_char: document.getElementById('aec').value,
+                exclude_chars: document.getElementById('exc').value, ban_start_chars: document.getElementById('bsc').value,
+                valid_chars: document.getElementById('valid_chars').value, len_mode: document.getElementById('len_mode').value,
+                max_len: document.getElementById('ml').value, pos_shift: parseInt(document.getElementById('ps').value || 0),
+                use_shift: document.getElementById('use_shift').checked, ks_abs: parseInt(document.getElementById('ks_abs').value),
+                shift_mode: document.querySelector('input[name="shift_mode"]:checked').value,
+                allow_daku: document.getElementById('allow_daku').checked, allow_handaku: document.getElementById('allow_handaku').checked,
+                auto_recovery: document.getElementById('auto_recovery').checked, char_limit_mode: document.getElementById('char_limit_mode').checked,
+                unify_small: document.getElementById('unify_small').checked, round_trip: document.getElementById('rt').checked,
+                exclude_conjugate: document.getElementById('exclude_conjugate').checked,
+                categories: Array.from(document.querySelectorAll('input[name="cat"]:checked')).map(c => c.value),
+                red_words: Object.keys(wordStates).filter(k => wordStates[k] === 'red'), blue_words: Object.keys(wordStates).filter(k => wordStates[k] === 'blue')
+            };
+            const r = await fetch('/search', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+            const d = await r.json(); currentRoutes = d.routes || []; btn.innerText = "Explore"; btn.disabled = false; display();
+        }
+
+        function display() {
+            document.getElementById('res').innerHTML = currentRoutes.map((rt, i) => `
+                <div class="glass p-4 rounded-[20px] flex flex-col gap-2">
+                    <div class="flex justify-between items-center text-[10px] font-black text-slate-400"><span>#${i+1}</span><button onclick="copyOne(${i})" class="text-blue-600">Copy</button></div>
+                    <div class="font-bold text-sm">${rt.join(' → ')}</div>
+                    <div class="text-[9px] font-black uppercase text-blue-500">${rt.join('').length} letters</div>
+                </div>`).join('');
+            document.getElementById('stats').innerText = `${currentRoutes.length} ROUTES FOUND`;
+            document.getElementById('stats').classList.remove('hidden');
+        }
+
+        function copyOne(i) { navigator.clipboard.writeText(currentRoutes[i].join(' → ')); }
+        function copyAll() { navigator.clipboard.writeText(currentRoutes.map(rt => rt.join(' → ')).join('\n')); }
+        function copyTopN() { const n = parseInt(document.getElementById('copy_limit').value); navigator.clipboard.writeText(currentRoutes.slice(0, n).map(rt => rt.join(' → ')).join('\n')); }
+
+        window.onload = init;
+    </script>
 </body>
 </html>
