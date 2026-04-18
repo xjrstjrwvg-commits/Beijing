@@ -1,17 +1,17 @@
 import os, time, sys, re, random
 from flask import Flask, render_template, request, jsonify
 from collections import Counter, defaultdict
-
-# 辞書データのインポート
+# 外部化した辞書データをインポート
 try:
     from dictionary import DICTIONARY_MASTER
 except ImportError:
+    # 辞書ファイルがない場合のエラー回避（デバッグ用）
     DICTIONARY_MASTER = {"country": ["ニホン"], "capital": ["トウキョウ"]}
 
 sys.setrecursionlimit(10000)
-# template_folderを明示的に指定してiPhoneでの階層ミスをカバーします
-app = Flask(__name__, template_folder='templates')
+app = Flask(__name__)
 
+# --- 定数・マッピング ---
 KANA_LIST = (
     "アイウエオ" "カキクケコ" "ガギグゲゴ" "サシスセソ" "ザジズゼゾ"
     "タチツテト" "ダヂヅデド" "ナニヌネノ" "ハヒフヘホ" "バビブベボ"
@@ -24,6 +24,7 @@ HANDAKU_MAP = {"ハ":"パ", "ヒ":"ピ", "フ":"プ", "ヘ":"ペ", "ホ":"ポ"}
 REV_DAKU = {v: k for k, v in DAKU_MAP.items()}
 REV_HANDAKU = {v: k for k, v in HANDAKU_MAP.items()}
 
+# --- ユーティリティ ---
 def to_katakana(text):
     if not text: return ""
     return "".join([chr(ord(c) + 96) if 0x3041 <= ord(c) <= 0x3096 else c for c in text])
@@ -61,28 +62,19 @@ def get_variants(char, allow_daku, allow_handaku, unify=False):
     return variants
 
 @app.route('/')
-def index():
-    return render_template('index.html')
+def index(): return render_template('index.html')
 
 @app.route('/get_dictionary')
-def get_dictionary():
-    return jsonify(DICTIONARY_MASTER)
+def get_dictionary(): return jsonify(DICTIONARY_MASTER)
 
 @app.route('/search', methods=['POST'])
 def search():
     d = request.json
-    timeout = int(d.get('timeout', 15))
-    limit = int(d.get('limit', 1500))
-    limit_en = d.get('limit_enabled', True)
-    max_len = int(d.get('max_len', 5))
-    p_shift = int(d.get('pos_shift', 0))
-    use_shift = d.get('use_shift', False)
-    ks_val = int(d.get('ks_abs', 1))
-    s_mode = d.get('shift_mode', 'abs')
+    timeout, limit, limit_en = int(d.get('timeout', 15)), int(d.get('limit', 1500)), d.get('limit_enabled', True)
+    max_len, p_shift = int(d.get('max_len', 5)), int(d.get('pos_shift', 0))
+    use_shift, ks_val, s_mode = d.get('use_shift', False), int(d.get('ks_abs', 1)), d.get('shift_mode', 'abs')
     
-    u_small = d.get('unify_small', False)
-    u_daku = d.get('allow_daku', False)
-    u_handaku = d.get('allow_handaku', False)
+    u_small, u_daku, u_handaku = d.get('unify_small', False), d.get('allow_daku', False), d.get('allow_handaku', False)
     scope = d.get('unify_scope', 'all')
     
     conn_s, conn_d, conn_h = (u_small and scope in ['all', 'conn']), (u_daku and scope in ['all', 'conn']), (u_handaku and scope in ['all', 'conn'])
@@ -92,9 +84,7 @@ def search():
     raw_valid = to_katakana(d.get('valid_chars', ""))
     valid_chars = set(raw_valid.replace("、", "").replace(",", "")) if raw_valid else None
 
-    red_words = set(d.get('red_words', []))
-    blue_words = set(d.get('blue_words', []))
-    
+    red_words, blue_words = set(d.get('red_words', [])), set(d.get('blue_words', []))
     asc = [get_clean_char(c.strip(), "head", 0, filt_s, filt_d, filt_h) for c in re.split('[、,]', to_katakana(d.get('all_start_char', ""))) if c.strip()]
     aec = [get_clean_char(c.strip(), "head", 0, filt_s, filt_d, filt_h) for c in re.split('[、,]', to_katakana(d.get('all_end_char', ""))) if c.strip()]
     ex_list = [get_base_char(c.strip(), filt_s, filt_d, filt_h) for c in re.split('[、,]', to_katakana(d.get('exclude_chars', ""))) if c.strip()]
@@ -106,11 +96,8 @@ def search():
     end_char = get_clean_char(to_katakana(d.get('end_char', "")), "head", 0, filt_s, filt_d, filt_h)
 
     raw_pool = []
-    for cat in d.get('categories', ["country"]):
-        raw_pool.extend(DICTIONARY_MASTER.get(cat, []))
+    for cat in d.get('categories', ["country"]): raw_pool.extend(DICTIONARY_MASTER.get(cat, []))
     raw_pool = list(set(raw_pool))
-    
-    total_raw_count = len(raw_pool)
 
     temp_pool = []
     for w in raw_pool:
@@ -136,8 +123,6 @@ def search():
             if len(words) == 1: word_pool.append(words[0])
     else:
         word_pool = temp_pool
-
-    available_word_count = len(word_pool)
 
     head_index, tail_index = defaultdict(list), defaultdict(list)
     for w in word_pool:
@@ -211,14 +196,11 @@ def search():
     elif sm == 'len_asc': results.sort(key=lambda x: len("".join(x)))
     elif sm == 'len_desc': results.sort(key=lambda x: len("".join(x)), reverse=True)
     elif sm == 'random': random.shuffle(results)
+    return jsonify({"routes": results, "count": len(results)})
 
-    return jsonify({
-        "routes": results, 
-        "count": len(results),
-        "total_raw_count": total_raw_count,
-        "available_word_count": available_word_count
-    })
-
-if __name__ == "__main__":
+# Render環境で正常に通信を待機するための設定
+if __name__ == '__main__':
+    # RenderはPORT環境変数を割り当てるため、それを優先的に使用
+    # host='0.0.0.0' に設定しないと、外部（Renderのプロキシ）からの通信が届きません
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host='0.0.0.0', port=port)
