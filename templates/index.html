@@ -4,92 +4,156 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>極・ULTRA ENGINE Pro</title>
-    <!-- Tailwindを確実に読み込むための記述 -->
     <script src="https://tailwindcss.com"></script>
     <style>
-        /* iPhoneのSafariでも崩れないための補正 */
         body { -webkit-text-size-adjust: 100%; }
-        .glass { 
-            background: white; 
-            border: 1px solid #e2e8f0; 
-            border-radius: 28px; 
-            padding: 24px; 
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); 
-        }
-        @media (prefers-color-scheme: dark) {
-            body { background-color: #020617; color: #f1f5f9; }
-            .glass { background-color: #0f172a; border-color: #1e293b; }
-        }
+        .glass { @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl; }
+        .dark { color-scheme: dark; }
+        input, select, textarea { @apply bg-slate-100 dark:bg-slate-800 p-3 rounded-xl text-sm outline-none font-bold; }
+        .btn-blue { @apply bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest; }
     </style>
 </head>
-<body class="bg-slate-50 p-4 flex justify-center items-start min-h-screen">
-    <div class="w-full max-w-md space-y-6">
-        
-        <!-- ヘッダー -->
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-3 pb-24">
+    <div class="max-w-md mx-auto space-y-3">
         <header class="flex justify-between items-center py-2">
-            <h1 class="text-2xl font-black italic text-blue-600 uppercase tracking-tighter">Ultra Engine</h1>
-            <div class="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 px-3 py-1 rounded-full uppercase">Pro Edition</div>
+            <h1 class="text-xl font-black text-blue-600 uppercase italic">Ultra Engine</h1>
+            <button onclick="copyAll(this)" id="allCopyBtn" class="bg-slate-200 dark:bg-slate-800 px-4 py-2 rounded-full text-[10px] font-bold uppercase transition-colors">All Copy</button>
         </header>
 
-        <!-- メインカード -->
-        <div class="glass space-y-5">
-            <div class="space-y-2">
-                <label class="text-[10px] font-black text-blue-500 uppercase ml-1">Start Word</label>
-                <input id="sw" placeholder="開始単語を入力" class="w-full p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold transition-all">
+        <div class="glass rounded-[28px] p-5 space-y-4 shadow-2xl">
+            <input id="sw" placeholder="開始単語" class="w-full">
+            <div class="grid grid-cols-3 gap-2">
+                <input id="sc" placeholder="開始字" class="w-full">
+                <input id="mc" placeholder="必須文字 (ア:2可)" class="w-full">
+                <input id="ec" placeholder="終了字" class="w-full">
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-                <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Start Char</label>
-                    <input id="sc" placeholder="開始字" class="w-full p-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">End Char</label>
-                    <input id="ec" placeholder="終了字" class="w-full p-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">
-                </div>
+            <!-- 簡易スコア表示枠 -->
+            <div id="stats" class="text-center p-4 border-2 border-dashed border-blue-200 dark:border-blue-900 rounded-3xl hidden">
+                <div id="route-count" class="text-[10px] font-black text-slate-400 uppercase"></div>
+                <div id="score-val" class="text-2xl font-black text-blue-600 my-1 tracking-tighter"></div>
+                <div id="rank-name" class="text-[11px] font-black px-4 py-1 rounded-full bg-blue-600 text-white inline-block"></div>
             </div>
 
-            <button onclick="runTest()" id="btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest text-sm">
-                Explore
-            </button>
+            <button type="button" onclick="run()" id="btn" class="w-full btn-blue">Explore</button>
 
-            <div id="res" class="text-center py-2 hidden">
-                <div id="status-msg" class="text-[11px] font-black text-emerald-500 uppercase"></div>
+            <div class="flex gap-4 text-[11px] font-bold justify-center">
+                <label><input type="checkbox" id="char_limit_mode"> 重複禁止</label>
+                <label><input type="checkbox" id="auto_recovery"> 遡り接続</label>
+                <label><input type="checkbox" id="exclude_conjugate"> 共役排除</label>
             </div>
         </div>
 
-        <!-- 結果表示エリア -->
-        <div id="results-list" class="space-y-3">
-            <!-- ここに結果が追加されます -->
-        </div>
-
+        <div id="res" class="space-y-3"></div>
     </div>
 
     <script>
-        async function runTest() {
+        let currentRoutes = [];
+
+        function flashCopy(btn) {
+            const old = btn.innerText;
+            btn.innerText = "COPIED!";
+            btn.style.color = "#10b981";
+            setTimeout(() => { btn.innerText = old; btn.style.color = ""; }, 1200);
+        }
+
+        function getRank(s) {
+            if (s <= 50) return { r: 1, n: "BEGINNER" };
+            if (s <= 150) return { r: 2, n: "STANDARD" };
+            if (s <= 400) return { r: 3, n: "ADVANCED" };
+            if (s <= 1000) return { r: 4, n: "EXPERT" };
+            if (s <= 3000) return { r: 5, n: "MASTER" };
+            if (s <= 8000) return { r: 6, n: "GRAND MASTER" };
+            if (s <= 20000) return { r: 7, n: "LEGEND" };
+            if (s <= 50000) return { r: 8, n: "MYTHICAL" };
+            if (s <= 150000) return { r: 9, n: "ETERNAL" };
+            return { r: 10, n: "ULTIMATE" };
+        }
+
+        async function run() {
             const btn = document.getElementById('btn');
-            const res = document.getElementById('res');
-            const status = document.getElementById('status-msg');
-            
             btn.innerText = "EXPLORING...";
-            btn.disabled = true;
+            
+            const body = {
+                start_word: document.getElementById('sw').value,
+                start_char: document.getElementById('sc').value,
+                must_char: document.getElementById('mc').value,
+                end_char: document.getElementById('ec').value,
+                char_limit_mode: document.getElementById('char_limit_mode').checked,
+                auto_recovery: document.getElementById('auto_recovery').checked,
+                exclude_conjugate: document.getElementById('exclude_conjugate').checked,
+                categories: ["country", "capital"],
+                ml: 5 // デフォルト単語数
+            };
 
             try {
-                const r = await fetch('/get_dictionary');
-                if (!r.ok) throw new Error('Network error');
+                const r = await fetch('/search', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'}, 
+                    body: JSON.stringify(body) 
+                });
                 const d = await r.json();
-                
-                res.classList.remove('hidden');
-                status.innerText = "Success: " + (d.country.length + d.capital.length) + " words available";
-                
+                currentRoutes = d.routes || [];
+                btn.innerText = "EXPLORE";
+                display(d.total_raw_count, d.available_word_count);
             } catch (e) {
-                res.classList.remove('hidden');
-                status.innerText = "Error: Connection failed";
-                status.className = "text-[11px] font-black text-rose-500 uppercase";
-            } finally {
-                btn.innerText = "Explore";
-                btn.disabled = false;
+                btn.innerText = "ERROR";
             }
+        }
+
+        function display(total, avail) {
+            const N = currentRoutes.length;
+            const stats = document.getElementById('stats');
+            if (N > 0) {
+                // 確定スコア式計算
+                const ml = 5; 
+                const Co = ml * ml;
+                const So = Math.round((10 / Math.sqrt(N)) * 100) / 100;
+                const P = 1.0; // 物理ずらし簡易版
+                const Sh = 1.0; // 50音ずらし簡易版
+                const Ch = document.getElementById('char_limit_mode').checked ? 5 : 1;
+                const L = 1; // 構成
+                
+                const mcVal = document.getElementById('mc').value;
+                const mcList = mcVal ? mcVal.split(',').filter(x => x.trim()) : [];
+                const Mc = Math.pow(1.2, mcList.length);
+                
+                let On = 1;
+                mcList.forEach(m => { if(m.includes(':')) On *= (1 + 0.2 * parseInt(m.split(':')[1])); });
+
+                const Re = total / (avail || 1);
+                const Ex = document.getElementById('exclude_conjugate').checked ? 1.5 : 1;
+                const Ar = document.getElementById('auto_recovery').checked ? 0.7 : 1.0;
+
+                const score = Math.round(Co * So * P * Sh * Ch * L * Mc * On * 1 * Re * Ex * Ar);
+                const rank = getRank(score);
+
+                document.getElementById('route-count').innerText = N + " ROUTES FOUND";
+                document.getElementById('score-val').innerText = score.toLocaleString() + " PTS";
+                document.getElementById('rank-name').innerText = "RANK " + rank.r + ": " + rank.n;
+                stats.classList.remove('hidden');
+            } else {
+                stats.classList.add('hidden');
+            }
+
+            document.getElementById('res').innerHTML = currentRoutes.map((rt, i) => `
+                <div class="glass p-4 rounded-2xl flex flex-col gap-2">
+                    <div class="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                        <span>#${i+1}</span>
+                        <button onclick="copyOne(this, ${i})" class="text-blue-600">COPY</button>
+                    </div>
+                    <div class="font-bold text-sm">${rt.join(' → ')}</div>
+                </div>`).join('');
+        }
+
+        function copyOne(btn, i) {
+            navigator.clipboard.writeText(currentRoutes[i].join(' → '));
+            flashCopy(btn);
+        }
+
+        function copyAll(btn) {
+            navigator.clipboard.writeText(currentRoutes.map(rt => rt.join(' → ')).join('\n'));
+            flashCopy(btn);
         }
     </script>
 </body>
