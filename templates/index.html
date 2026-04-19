@@ -6,155 +6,220 @@
     <title>極・ULTRA ENGINE Pro</title>
     <script src="https://tailwindcss.com"></script>
     <style>
-        body { -webkit-text-size-adjust: 100%; }
-        .glass { @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl; }
+        html, body { overflow-x: hidden; position: relative; width: 100%; touch-action: pan-y; }
         .dark { color-scheme: dark; }
-        input, select, textarea { @apply bg-slate-100 dark:bg-slate-800 p-3 rounded-xl text-sm outline-none font-bold; }
-        .btn-blue { @apply bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest; }
+        .glass { @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl; }
+        input, select { @apply bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 p-2.5 rounded-xl text-xs outline-none focus:ring-1 ring-blue-500 transition-all font-bold; }
+        .step-btn { @apply bg-slate-200 dark:bg-slate-700 w-9 h-9 flex items-center justify-center rounded-lg font-black active:scale-90 transition-all text-sm; }
+        ::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-3 pb-24">
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-3 font-sans text-xs pb-24" onchange="saveSettings()" oninput="saveSettings()">
     <div class="max-w-md mx-auto space-y-3">
-        <header class="flex justify-between items-center py-2">
-            <h1 class="text-xl font-black text-blue-600 uppercase italic">Ultra Engine</h1>
-            <button onclick="copyAll(this)" id="allCopyBtn" class="bg-slate-200 dark:bg-slate-800 px-4 py-2 rounded-full text-[10px] font-bold uppercase transition-colors">All Copy</button>
+        <header class="flex justify-between items-center py-1">
+            <h1 class="text-xl font-black italic text-blue-600 uppercase tracking-tighter">Ultra Engine Pro</h1>
+            <button onclick="document.documentElement.classList.toggle('dark')" class="p-2.5 glass rounded-full shadow-sm active:rotate-45 transition-transform">🌓</button>
         </header>
 
         <div class="glass rounded-[28px] p-5 space-y-4 shadow-2xl">
+            <!-- 基本設定 -->
             <input id="sw" placeholder="開始単語" class="w-full">
             <div class="grid grid-cols-3 gap-2">
-                <input id="sc" placeholder="開始字" class="w-full">
-                <input id="mc" placeholder="必須文字 (ア:2可)" class="w-full">
-                <input id="ec" placeholder="終了字" class="w-full">
+                <input id="sc" placeholder="開始字">
+                <input id="mc" placeholder="必須(ア,イ)">
+                <input id="ec" placeholder="終了字">
             </div>
 
-            <!-- 簡易スコア表示枠 -->
-            <div id="stats" class="text-center p-4 border-2 border-dashed border-blue-200 dark:border-blue-900 rounded-3xl hidden">
-                <div id="route-count" class="text-[10px] font-black text-slate-400 uppercase"></div>
-                <div id="score-val" class="text-2xl font-black text-blue-600 my-1 tracking-tighter"></div>
-                <div id="rank-name" class="text-[11px] font-black px-4 py-1 rounded-full bg-blue-600 text-white inline-block"></div>
+            <!-- 特殊モード -->
+            <div class="grid grid-cols-2 gap-2 text-[10px] font-bold">
+                <label class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-xl border dark:border-slate-700 cursor-pointer">
+                    <input type="checkbox" id="auto_recovery" class="w-4 h-4 accent-blue-600"> 遡り接続
+                </label>
+                <label class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-xl border dark:border-slate-700 cursor-pointer">
+                    <input type="checkbox" id="rt" class="w-4 h-4 accent-blue-600"> 牛耕 (往復)
+                </label>
             </div>
 
-            <button type="button" onclick="run()" id="btn" class="w-full btn-blue">Explore</button>
-
-            <div class="flex gap-4 text-[11px] font-bold justify-center">
-                <label><input type="checkbox" id="char_limit_mode"> 重複禁止</label>
-                <label><input type="checkbox" id="auto_recovery"> 遡り接続</label>
-                <label><input type="checkbox" id="exclude_conjugate"> 共役排除</label>
+            <!-- 50音ずらし -->
+            <div class="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+                <div class="flex justify-between items-center">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">50音ずらし</label>
+                    <input type="checkbox" id="use_shift" class="w-5 h-5 accent-blue-600">
+                </div>
+                <div class="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/30 p-2 rounded-xl">
+                    <div class="flex gap-2 font-bold text-[10px]">
+                        <label class="flex items-center gap-1"><input type="radio" name="shift_mode" value="abs" checked> ±</label>
+                        <label class="flex items-center gap-1"><input type="radio" name="shift_mode" value="normal"> 通常</label>
+                    </div>
+                    <div class="flex items-center gap-2 ml-auto">
+                        <button onclick="adjustVal('ks_abs',-1)" class="step-btn">-</button>
+                        <input type="number" id="ks_abs" value="1" class="w-10 text-center bg-transparent border-none text-sm">
+                        <button onclick="adjustVal('ks_abs',1)" class="step-btn">+</button>
+                    </div>
+                </div>
             </div>
+
+            <!-- 数値設定 -->
+            <div class="grid grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800 pt-3">
+                <div class="space-y-1">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">単語数</label>
+                    <div class="flex items-center gap-2">
+                        <button onclick="adjustVal('ml',-1)" class="step-btn">-</button>
+                        <input type="number" id="ml" value="2" class="w-10 text-center bg-transparent border-none text-sm">
+                        <button onclick="adjustVal('ml',1)" class="step-btn">+</button>
+                    </div>
+                </div>
+                <div class="space-y-1 text-right">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">物理 / 文字計</label>
+                    <div class="flex justify-end gap-2">
+                        <input type="number" id="ps" value="0" class="w-10 text-center text-sm">
+                        <input type="number" id="ttl" placeholder="計" class="w-12 text-center text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-3 text-[10px] font-bold border-t border-slate-100 dark:border-slate-800 pt-3">
+                <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="conj" class="accent-blue-600"> 共役排除</label>
+                <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="once" class="accent-blue-600"> 単一制約</label>
+            </div>
+
+            <!-- カテゴリ & 実行ボタン -->
+            <div class="flex items-center justify-between font-bold pt-1 gap-2">
+                <div class="flex gap-3 text-[11px]">
+                    <label class="cursor-pointer text-blue-500"><input type="checkbox" name="cat" value="country" checked> 国</label>
+                    <label class="cursor-pointer text-blue-500"><input type="checkbox" name="cat" value="capital"> 首都</label>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="run(true)" id="sumBtn" class="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black px-4 py-3.5 rounded-2xl active:scale-95 text-[10px] uppercase">Summary</button>
+                    <button onclick="run(false)" id="btn" class="bg-blue-600 text-white font-black px-8 py-3.5 rounded-2xl shadow-lg active:scale-95 text-[10px] uppercase tracking-widest">Explore</button>
+                </div>
+            </div>
+
+            <!-- 逆算サマリー表示用 -->
+            <div id="summary-res" class="flex flex-wrap gap-1.5 pt-1"></div>
         </div>
 
-        <div id="res" class="space-y-3"></div>
+        <!-- 辞書設定 -->
+        <details class="glass rounded-2xl overflow-hidden mt-3">
+            <summary class="p-3.5 text-[10px] font-black uppercase text-slate-400 cursor-pointer flex justify-between bg-slate-50 dark:bg-slate-800/50">
+                <span>Dictionary Settings</span>
+                <div class="flex gap-4">
+                    <button onclick="allState(0)" class="text-blue-500">全可</button>
+                    <button onclick="allState(1)" class="text-red-500">全不可</button>
+                </div>
+            </summary>
+            <div id="dict-content" class="p-4 max-h-60 overflow-y-auto"></div>
+        </details>
+
+        <div id="stats" class="text-center text-[10px] font-bold text-blue-500 hidden uppercase py-2"></div>
+        <div id="res" class="space-y-3 pb-20"></div>
     </div>
 
     <script>
-        let currentRoutes = [];
+        let wordStates = {}; let masterDataCache = {}; let currentRoutes = [];
 
-        function flashCopy(btn) {
-            const old = btn.innerText;
-            btn.innerText = "COPIED!";
-            btn.style.color = "#10b981";
-            setTimeout(() => { btn.innerText = old; btn.style.color = ""; }, 1200);
+        function saveSettings() {
+            localStorage.ultraSettings = JSON.stringify({
+                sw: document.getElementById('sw').value, sc: document.getElementById('sc').value,
+                mc: document.getElementById('mc').value, ec: document.getElementById('ec').value,
+                ml: document.getElementById('ml').value, ps: document.getElementById('ps').value, 
+                ks_abs: document.getElementById('ks_abs').value, use_shift: document.getElementById('use_shift').checked,
+                shift_mode: document.querySelector('input[name="shift_mode"]:checked')?.value || 'abs',
+                ttl: document.getElementById('ttl').value, conj: document.getElementById('conj').checked, 
+                rt: document.getElementById('rt').checked, once: document.getElementById('once').checked,
+                recovery: document.getElementById('auto_recovery').checked,
+                cats: Array.from(document.querySelectorAll('input[name="cat"]:checked')).map(c => c.value), wordStates: wordStates
+            });
         }
 
-        function getRank(s) {
-            if (s <= 50) return { r: 1, n: "BEGINNER" };
-            if (s <= 150) return { r: 2, n: "STANDARD" };
-            if (s <= 400) return { r: 3, n: "ADVANCED" };
-            if (s <= 1000) return { r: 4, n: "EXPERT" };
-            if (s <= 3000) return { r: 5, n: "MASTER" };
-            if (s <= 8000) return { r: 6, n: "GRAND MASTER" };
-            if (s <= 20000) return { r: 7, n: "LEGEND" };
-            if (s <= 50000) return { r: 8, n: "MYTHICAL" };
-            if (s <= 150000) return { r: 9, n: "ETERNAL" };
-            return { r: 10, n: "ULTIMATE" };
+        async function init() {
+            const r = await fetch('/get_dictionary'); masterDataCache = await r.json();
+            if (localStorage.ultraSettings) {
+                const s = JSON.parse(localStorage.ultraSettings);
+                document.getElementById('sw').value = s.sw || ""; document.getElementById('sc').value = s.sc || "";
+                document.getElementById('mc').value = s.mc || ""; document.getElementById('ec').value = s.ec || "";
+                document.getElementById('ml').value = s.ml || 2; document.getElementById('ps').value = s.ps || 0;
+                document.getElementById('ks_abs').value = s.ks_abs || 1; document.getElementById('use_shift').checked = s.use_shift || false;
+                if(s.shift_mode) { let el = document.querySelector(`input[name="shift_mode"][value="${s.shift_mode}"]`); if(el) el.checked = true; }
+                document.getElementById('ttl').value = s.ttl || ""; document.getElementById('conj').checked = s.conj || false;
+                document.getElementById('rt').checked = s.rt || false; document.getElementById('once').checked = s.once || false;
+                document.getElementById('auto_recovery').checked = s.recovery || false;
+                document.querySelectorAll('input[name="cat"]').forEach(c => c.checked = (s.cats || ["country"]).includes(c.value));
+                wordStates = s.wordStates || {};
+            }
+            renderDictionary();
         }
 
-        async function run() {
-            const btn = document.getElementById('btn');
-            btn.innerText = "EXPLORING...";
-            
-            const body = {
-                start_word: document.getElementById('sw').value,
-                start_char: document.getElementById('sc').value,
-                must_char: document.getElementById('mc').value,
-                end_char: document.getElementById('ec').value,
-                char_limit_mode: document.getElementById('char_limit_mode').checked,
-                auto_recovery: document.getElementById('auto_recovery').checked,
-                exclude_conjugate: document.getElementById('exclude_conjugate').checked,
-                categories: ["country", "capital"],
-                ml: 5 // デフォルト単語数
-            };
+        function renderDictionary() {
+            document.getElementById('dict-content').innerHTML = Object.keys(masterDataCache).map(cat => `
+                <div class="mb-4 text-[10px]"><p class="font-black text-blue-500 uppercase mb-2">${cat}</p>
+                <div class="grid grid-cols-2 gap-1">${masterDataCache[cat].sort().map(w => {
+                    const colors = ["bg-slate-50 dark:bg-slate-800", "bg-red-100 dark:bg-red-900/40 text-red-500", "bg-blue-600 text-white"];
+                    return `<div class="flex justify-between items-center p-2 rounded-xl ${colors[wordStates[w]||0]} border dark:border-slate-700">
+                    <span class="truncate pr-1 font-bold">${w}</span>
+                    <button onclick="cycleState('${w}')" class="px-2 py-1 rounded-lg border text-[8px] font-black uppercase">切替</button></div>`;
+                }).join('')}</div></div>`).join('');
+        }
+
+        function cycleState(w) { wordStates[w] = ((wordStates[w] || 0) + 1) % 3; saveSettings(); renderDictionary(); }
+        function allState(s) { Object.values(masterDataCache).flat().forEach(w => wordStates[w] = s); saveSettings(); renderDictionary(); }
+        function adjustVal(id, delta) { const el = document.getElementById(id); el.value = Math.max(1, parseInt(el.value) + delta); saveSettings(); }
+
+        async function run(isSummary = false) {
+            const btn = isSummary ? document.getElementById('sumBtn') : document.getElementById('btn');
+            const originalText = btn.innerText; btn.innerText = "WAIT..."; btn.disabled = true;
+            document.getElementById('summary-res').innerHTML = "";
 
             try {
-                const r = await fetch('/search', { 
-                    method: 'POST', 
-                    headers: {'Content-Type': 'application/json'}, 
-                    body: JSON.stringify(body) 
+                const r = await fetch('/search', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        summary_mode: isSummary,
+                        start_word: document.getElementById('sw').value, start_char: document.getElementById('sc').value,
+                        must_char: document.getElementById('mc').value, end_char: document.getElementById('ec').value,
+                        max_len: document.getElementById('ml').value, target_total_len: document.getElementById('ttl').value || null,
+                        pos_shift: document.getElementById('ps').value, use_shift: document.getElementById('use_shift').checked, 
+                        ks_abs: document.getElementById('ks_abs').value, shift_mode: document.querySelector('input[name="shift_mode"]:checked').value,
+                        exclude_conjugates: document.getElementById('conj').checked, round_trip: document.getElementById('rt').checked,
+                        once_constraint: document.getElementById('once').checked, auto_recovery: document.getElementById('auto_recovery').checked,
+                        categories: Array.from(document.querySelectorAll('input[name="cat"]:checked')).map(c => c.value),
+                        blocked_words: Object.keys(wordStates).filter(w => wordStates[w] === 1), force_words: Object.keys(wordStates).filter(w => wordStates[w] === 2)
+                    })
                 });
                 const d = await r.json();
-                currentRoutes = d.routes || [];
-                btn.innerText = "EXPLORE";
-                display(d.total_raw_count, d.available_word_count);
-            } catch (e) {
-                btn.innerText = "ERROR";
-            }
-        }
-
-        function display(total, avail) {
-            const N = currentRoutes.length;
-            const stats = document.getElementById('stats');
-            if (N > 0) {
-                // 確定スコア式計算
-                const ml = 5; 
-                const Co = ml * ml;
-                const So = Math.round((10 / Math.sqrt(N)) * 100) / 100;
-                const P = 1.0; // 物理ずらし簡易版
-                const Sh = 1.0; // 50音ずらし簡易版
-                const Ch = document.getElementById('char_limit_mode').checked ? 5 : 1;
-                const L = 1; // 構成
                 
-                const mcVal = document.getElementById('mc').value;
-                const mcList = mcVal ? mcVal.split(',').filter(x => x.trim()) : [];
-                const Mc = Math.pow(1.2, mcList.length);
-                
-                let On = 1;
-                mcList.forEach(m => { if(m.includes(':')) On *= (1 + 0.2 * parseInt(m.split(':')[1])); });
-
-                const Re = total / (avail || 1);
-                const Ex = document.getElementById('exclude_conjugate').checked ? 1.5 : 1;
-                const Ar = document.getElementById('auto_recovery').checked ? 0.7 : 1.0;
-
-                const score = Math.round(Co * So * P * Sh * Ch * L * Mc * On * 1 * Re * Ex * Ar);
-                const rank = getRank(score);
-
-                document.getElementById('route-count').innerText = N + " ROUTES FOUND";
-                document.getElementById('score-val').innerText = score.toLocaleString() + " PTS";
-                document.getElementById('rank-name').innerText = "RANK " + rank.r + ": " + rank.n;
-                stats.classList.remove('hidden');
-            } else {
-                stats.classList.add('hidden');
-            }
-
-            document.getElementById('res').innerHTML = currentRoutes.map((rt, i) => `
-                <div class="glass p-4 rounded-2xl flex flex-col gap-2">
-                    <div class="flex justify-between items-center text-[10px] font-bold text-slate-400">
-                        <span>#${i+1}</span>
-                        <button onclick="copyOne(this, ${i})" class="text-blue-600">COPY</button>
-                    </div>
-                    <div class="font-bold text-sm">${rt.join(' → ')}</div>
-                </div>`).join('');
+                if (isSummary) {
+                    document.getElementById('summary-res').innerHTML = (d.summary || []).map(item => {
+                        const pair = item.split(' ')[0];
+                        return `<button onclick="quickSet('${pair}')" class="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-xl text-[10px] font-black border border-blue-100 dark:border-blue-800/50 active:scale-90">${item}</button>`;
+                    }).join('');
+                } else {
+                    currentRoutes = d.routes;
+                    document.getElementById('res').innerHTML = d.routes.map((rt, i) => `
+                        <div class="glass p-4 rounded-[20px] flex flex-col gap-2 relative">
+                            <div class="flex justify-between items-center text-[10px] font-black uppercase text-slate-400"><span>#${i+1}</span><button onclick="copyRoute(${i}, this)" class="text-blue-600">Copy</button></div>
+                            <div class="font-bold text-[13px]">${rt.join(' → ')}</div>
+                            <div class="font-black text-[9px] text-blue-500 uppercase">${rt.join('').length} 文字</div>
+                        </div>`).join('');
+                    document.getElementById('stats').innerText = `${d.count} ROUTES FOUND`;
+                    document.getElementById('stats').classList.remove('hidden');
+                }
+            } catch(e) { alert("Error"); }
+            btn.innerText = originalText; btn.disabled = false;
         }
 
-        function copyOne(btn, i) {
-            navigator.clipboard.writeText(currentRoutes[i].join(' → '));
-            flashCopy(btn);
+        function quickSet(pair) {
+            const chars = pair.split('→');
+            document.getElementById('sc').value = chars[0];
+            document.getElementById('ec').value = chars[1];
+            saveSettings(); run(false);
         }
 
-        function copyAll(btn) {
-            navigator.clipboard.writeText(currentRoutes.map(rt => rt.join(' → ')).join('\n'));
-            flashCopy(btn);
+        function copyRoute(i, btn) {
+            const text = `${currentRoutes[i].join(' → ')} (${currentRoutes[i].join('').length}文字)`;
+            navigator.clipboard.writeText(text).then(() => { btn.innerText = "DONE!"; setTimeout(() => btn.innerText = "COPY", 1000); });
         }
+        window.onload = init;
     </script>
 </body>
 </html>
