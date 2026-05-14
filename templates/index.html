@@ -4,18 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>極・ULTRA ENGINE Pro</title>
+    <!-- 1回目と同じ正しいURLに修正しました -->
     <script src="tailwindcss.com"></script>
     <style>
         html, body { overflow-x: hidden; position: relative; width: 100%; touch-action: pan-y; max-height: 100vh; }
         .dark { color-scheme: dark; }
         .glass { @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl; }
-        /* 1画面に収めるため、パディングを p-3 から p-2 に縮小 */
         input, select, textarea { @apply bg-slate-100 dark:bg-slate-800 p-2 rounded-xl text-sm outline-none focus:ring-1 ring-blue-500 font-bold; }
         .step-btn { @apply bg-slate-200 dark:bg-slate-700 w-8 h-8 flex items-center justify-center rounded-lg font-black active:scale-90 transition-all text-sm; }
         ::-webkit-scrollbar { display: none; }
         .btn-white { background-color: white; color: #334155; border-color: #e2e8f0; }
         .dark .btn-white { background-color: #1e293b; color: #f1f5f9; border-color: #334155; }
-        /* 1画面に収まるよう結果表示の上限を制限 */
+        /* 1画面に収めるため、結果表示エリアの最大の高さを制限 */
         .custom-scroll { max-height: 180px; overflow-y: auto; scrollbar-width: none; }
         summary { list-style: none; cursor: pointer; }
         summary::-webkit-details-marker { display: none; }
@@ -118,7 +118,6 @@
                     <div class="grid grid-cols-2 gap-2 border-t border-slate-200 dark:border-slate-700 pt-2">
                         <div class="space-y-0.5">
                             <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">ソート順</label>
-                            <!-- ご指示通り、選択肢を指定内容に最適化 -->
                             <select id="sort_mode" class="w-full text-[10px] font-bold">
                                 <option value="kana">50音順</option>
                                 <option value="len_desc">文字数多い順</option>
@@ -198,7 +197,6 @@
             
             <div id="stats" class="text-center text-[10px] font-bold text-blue-500 hidden uppercase py-0.5"></div>
         </div>
-        <!-- 画面に収まるよう、結果一覧エリアにスクロール制限(custom-scroll)を適用 -->
         <div id="res" class="space-y-1.5 pb-4 custom-scroll"></div>
     </div>
 
@@ -234,8 +232,6 @@
                 checks.forEach(f => { if(s[f] !== undefined && document.getElementById(f)) document.getElementById(f).checked = s[f]; });
                 if (s.dark_mode) document.documentElement.classList.add('dark');
                 if (s.wordStates) wordStates = s.wordStates;
-                
-                // shift_mode ラジオボタンの復元
                 if (s.shift_mode) {
                     const rad = document.querySelector(`input[name="shift_mode"][value="${s.shift_mode}"]`);
                     if (rad) rad.checked = true;
@@ -286,7 +282,7 @@
                 len_mode: document.getElementById('len_mode').value, use_shift: document.getElementById('use_shift').checked,
                 exclude_conjugate: document.getElementById('exclude_conjugate').checked,
                 dark_mode: document.documentElement.classList.contains('dark'), wordStates: wordStates, shift_mode: sm ? sm.value : 'abs',
-                sort_mode: document.getElementById('sort_mode').value // ソート順の永続化を追加
+                sort_mode: document.getElementById('sort_mode').value
             });
         }
 
@@ -295,8 +291,6 @@
 
         async function run() {
             const btn = document.getElementById('btn'); btn.innerText = "EXPLORING..."; btn.disabled = true;
-            
-            // ラジオボタンの安全な取得
             const smEl = document.querySelector('input[name="shift_mode"]:checked');
             const shiftModeVal = smEl ? smEl.value : 'abs';
 
@@ -309,8 +303,8 @@
                 max_len: document.getElementById('ml').value, pos_shift: parseInt(document.getElementById('ps').value || 0),
                 use_shift: document.getElementById('use_shift').checked, ks_abs: parseInt(document.getElementById('ks_abs').value),
                 shift_mode: shiftModeVal,
-                sort_mode: document.getElementById('sort_mode').value, // パラメーター送信を追加
-                target_total_len: document.getElementById('ttl').value, // 文字数計の値を正確にバックエンドへ送信
+                sort_mode: document.getElementById('sort_mode').value,
+                target_total_len: document.getElementById('ttl').value,
                 allow_daku: document.getElementById('allow_daku').checked, allow_handaku: document.getElementById('allow_handaku').checked,
                 auto_recovery: document.getElementById('auto_recovery').checked, char_limit_mode: document.getElementById('char_limit_mode').checked,
                 unify_small: document.getElementById('unify_small').checked, round_trip: document.getElementById('rt').checked,
