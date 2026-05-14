@@ -158,7 +158,11 @@ def search():
 
             if not (check_list(d.get('group_constraints', [])) and check_list(d.get('choice_constraints', []))): return
             if must_chars and not all(norm_t.count(mc) >= 1 and (norm_t.count(mc) == 1 if d.get('once_constraint') else True) for mc in must_chars): return
-            if d.get('target_total_len') and current_total_len != int(d['target_total_len']): return
+            
+            # --- 【修正】文字数計（target_total_len）の判定を完全一致に限定（入力がある場合のみ） ---
+            if d.get('target_total_len') and d['target_total_len'] != "":
+                if current_total_len != int(d['target_total_len']): return
+                
             if end_char and get_clean_char(path[-1], "tail", 0, conn_s, conn_d, conn_h) not in get_variants(end_char, u_daku, u_handaku, conn_s): return
             results.append(list(path))
             return
@@ -191,16 +195,19 @@ def search():
         if not start_word and start_char and get_clean_char(w, "head", 0, filt_s, filt_d, filt_h) != start_char: continue
         solve([w], len(w))
     
+    # --- 【修正】フロント側と完全に同期したソート処理ロジック ---
     sm = d.get('sort_mode', 'default')
-    if sm == 'kana': results.sort()
-    elif sm == 'len_asc': results.sort(key=lambda x: len("".join(x)))
-    elif sm == 'len_desc': results.sort(key=lambda x: len("".join(x)), reverse=True)
-    elif sm == 'random': random.shuffle(results)
+    if sm == 'kana': 
+        results.sort()
+    elif sm == 'len_asc': 
+        results.sort(key=lambda x: len("".join(x)))
+    elif sm == 'len_desc': 
+        results.sort(key=lambda x: len("".join(x)), reverse=True)
+    elif sm == 'random': 
+        random.shuffle(results)
+        
     return jsonify({"routes": results, "count": len(results)})
 
-# Render環境で正常に通信を待機するための設定
 if __name__ == '__main__':
-    # RenderはPORT環境変数を割り当てるため、それを優先的に使用
-    # host='0.0.0.0' に設定しないと、外部（Renderのプロキシ）からの通信が届きません
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
