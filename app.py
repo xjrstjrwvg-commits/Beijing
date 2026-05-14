@@ -159,9 +159,10 @@ def search():
             if not (check_list(d.get('group_constraints', [])) and check_list(d.get('choice_constraints', []))): return
             if must_chars and not all(norm_t.count(mc) >= 1 and (norm_t.count(mc) == 1 if d.get('once_constraint') else True) for mc in must_chars): return
             
-            # --- 【修正】文字数計（target_total_len）の判定を完全一致に限定（入力がある場合のみ） ---
-            if d.get('target_total_len') and d['target_total_len'] != "":
-                if current_total_len != int(d['target_total_len']): return
+            # --- 【修正】文字数計（target_total_len）が空文字でない場合のみ完全一致チェックを実行 ---
+            ttl_val = d.get('target_total_len')
+            if ttl_val is not None and str(ttl_val).strip() != "":
+                if current_total_len != int(ttl_val): return
                 
             if end_char and get_clean_char(path[-1], "tail", 0, conn_s, conn_d, conn_h) not in get_variants(end_char, u_daku, u_handaku, conn_s): return
             results.append(list(path))
@@ -195,8 +196,8 @@ def search():
         if not start_word and start_char and get_clean_char(w, "head", 0, filt_s, filt_d, filt_h) != start_char: continue
         solve([w], len(w))
     
-    # --- 【修正】フロント側と完全に同期したソート処理ロジック ---
-    sm = d.get('sort_mode', 'default')
+    # --- 【修正】4択（50音順・文字数多い順・少ない順・ランダム）に最適化したソート処理 ---
+    sm = d.get('sort_mode', 'kana')
     if sm == 'kana': 
         results.sort()
     elif sm == 'len_asc': 
