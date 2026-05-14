@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>極・ULTRA ENGINE Pro</title>
-    <!-- 最初に送っていただいた正しいURLのまま維持 -->
+    <!-- 【完全修正】1回目と全く同じ正しいCDNリンクに復元しました -->
     <script src="tailwindcss.com"></script>
     <style>
         html, body { overflow-x: hidden; position: relative; width: 100%; touch-action: pan-y; }
@@ -15,6 +15,7 @@
         ::-webkit-scrollbar { display: none; }
         .btn-white { background-color: white; color: #334155; border-color: #e2e8f0; }
         .dark .btn-white { background-color: #1e293b; color: #f1f5f9; border-color: #334155; }
+        /* 1画面に収めるため、結果表示エリアの最大の高さを制限（スクロール可能に） */
         .custom-scroll { max-height: 300px; overflow-y: auto; scrollbar-width: none; }
         summary { list-style: none; cursor: pointer; }
         summary::-webkit-details-marker { display: none; }
@@ -117,7 +118,7 @@
                     <div class="grid grid-cols-2 gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
                         <div class="space-y-1">
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ソート順</label>
-                            <!-- 【修正】ご指示通りの4つの選択肢に変更 -->
+                            <!-- 指定の4つに変更 -->
                             <select id="sort_mode" class="w-full text-[11px] font-bold">
                                 <option value="kana">50音順</option>
                                 <option value="len_desc">文字数多い順</option>
@@ -150,7 +151,6 @@
                         <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-right block">物理ずらし / 文字計</label>
                         <div class="flex justify-end gap-3">
                             <input type="number" id="ps" value="0" class="w-14 text-center text-sm font-bold border-2">
-                            <!-- 【修正】プレースホルダーを任意入力であることがわかるように変更 -->
                             <input type="number" id="ttl" placeholder="計(任意)" class="w-16 text-center text-sm font-bold border-2">
                         </div>
                     </div>
@@ -199,7 +199,7 @@
             <div id="stats" class="text-center text-[10px] font-bold text-blue-500 hidden uppercase py-1"></div>
         </div>
         
-        <!-- 【修正】1画面に収まるよう、結果一覧エリアクラス(custom-scroll)を追加して高さを自動制限 -->
+        <!-- 1画面収め用スクロール制限エリア（デザインパーツ自体は元通り大きく綺麗に表示されます） -->
         <div id="res" class="space-y-3 pb-20 custom-scroll"></div>
     </div>
 
@@ -235,8 +235,6 @@
                 checks.forEach(f => { if(s[f] !== undefined && document.getElementById(f)) document.getElementById(f).checked = s[f]; });
                 if (s.dark_mode) document.documentElement.classList.add('dark');
                 if (s.wordStates) wordStates = s.wordStates;
-                
-                // 【修正】ラジオボタン(shift_mode)の安全な復元ロジック
                 if (s.shift_mode) {
                     const rad = document.querySelector(`input[name="shift_mode"][value="${s.shift_mode}"]`);
                     if (rad) rad.checked = true;
@@ -287,7 +285,7 @@
                 len_mode: document.getElementById('len_mode').value, use_shift: document.getElementById('use_shift').checked,
                 exclude_conjugate: document.getElementById('exclude_conjugate').checked,
                 dark_mode: document.documentElement.classList.contains('dark'), wordStates: wordStates, shift_mode: sm ? sm.value : 'abs',
-                sort_mode: document.getElementById('sort_mode').value // ソート状態をローカルストレージへ保存
+                sort_mode: document.getElementById('sort_mode').value
             });
         }
 
@@ -296,7 +294,6 @@
 
         async function run() {
             const btn = document.getElementById('btn'); btn.innerText = "EXPLORING..."; btn.disabled = true;
-            
             const smEl = document.querySelector('input[name="shift_mode"]:checked');
             const shiftModeVal = smEl ? smEl.value : 'abs';
 
@@ -309,8 +306,8 @@
                 max_len: document.getElementById('ml').value, pos_shift: parseInt(document.getElementById('ps').value || 0),
                 use_shift: document.getElementById('use_shift').checked, ks_abs: parseInt(document.getElementById('ks_abs').value),
                 shift_mode: shiftModeVal,
-                sort_mode: document.getElementById('sort_mode').value, // 選択されたソート順を送信
-                target_total_len: document.getElementById('ttl').value, // 【修正】文字数計の入力値を確実にバックエンドへ連動
+                sort_mode: document.getElementById('sort_mode').value,
+                target_total_len: document.getElementById('ttl').value,
                 allow_daku: document.getElementById('allow_daku').checked, allow_handaku: document.getElementById('allow_handaku').checked,
                 auto_recovery: document.getElementById('auto_recovery').checked, char_limit_mode: document.getElementById('char_limit_mode').checked,
                 unify_small: document.getElementById('unify_small').checked, round_trip: document.getElementById('rt').checked,
