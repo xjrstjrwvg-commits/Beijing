@@ -119,7 +119,7 @@ def can_connect(prev, nxt, *, unify_small, allow_daku, allow_handaku,
 
 
 # ============================
-# 単語フィルタ（重複禁止 / 共役排除 / 共役集約）
+# 単語フィルタ
 # ============================
 def filter_words(words, *, unify_small, allow_daku, allow_handaku,
                  char_limit_mode, exclude_conjugate, conjugate_merge):
@@ -147,7 +147,7 @@ def filter_words(words, *, unify_small, allow_daku, allow_handaku,
             if pair_count[pair] >= 2:
                 continue
 
-        # ④ 共役集約（UI 未実装なので False）
+        # ④ 共役集約（UI 未実装）
         if conjugate_merge:
             if pair_seen.get(pair, False):
                 continue
@@ -262,6 +262,19 @@ def get_dictionary():
 def search():
     d = request.json
 
+    # UI から送られてくる全パラメータを受け取る（未使用でも受け取る）
+    must_char = d.get("must_char")
+    all_start_char = d.get("all_start_char")
+    all_end_char = d.get("all_end_char")
+    valid_chars = d.get("valid_chars")
+    exclude_chars = d.get("exclude_chars")
+    ban_start_chars = d.get("ban_start_chars")
+    target_total_len = d.get("target_total_len")
+    len_mode = d.get("len_mode")
+    sort_mode = d.get("sort_mode")
+    round_trip = d.get("round_trip")
+
+    # 単語読み込み
     words = load_words(d["categories"])
 
     # 単語フィルタ
@@ -275,6 +288,7 @@ def search():
         conjugate_merge=False
     )
 
+    # 探索
     routes, checked, hit = search_routes(
         words,
         d["start_word"], d["start_char"], d["end_char"], d["end_word"],
