@@ -1,13 +1,16 @@
 from flask import Flask, request, jsonify, render_template
 import time
-import threading
 
 app = Flask(__name__)
 
 # ============================
-# 辞書読み込み
+# 辞書読み込み（DICTIONARY_MASTER 方式）
 # ============================
-from dictionary import COUNTRY_LIST, CAPITAL_LIST, CUSTOM_LIST
+from dictionary import DICTIONARY_MASTER
+
+COUNTRY_LIST = DICTIONARY_MASTER["country"]
+CAPITAL_LIST = DICTIONARY_MASTER["capital"]
+CUSTOM_LIST = DICTIONARY_MASTER["custom"]
 
 def load_words(categories):
     words = []
@@ -68,10 +71,7 @@ def apply_shift_char(c, ks_abs, shift_mode):
     if c not in KANA:
         return c
     idx = KANA.index(c)
-    if shift_mode == "abs":
-        return KANA[(idx + ks_abs) % len(KANA)]
-    else:
-        return KANA[(idx + ks_abs) % len(KANA)]
+    return KANA[(idx + ks_abs) % len(KANA)]
 
 def apply_physical_shift(c, pos_shift):
     if c not in KANA:
@@ -147,7 +147,7 @@ def filter_words(words, *, unify_small, allow_daku, allow_handaku,
             if pair_count[pair] >= 2:
                 continue
 
-        # ④ 共役集約
+        # ④ 共役集約（UI 未実装なので False）
         if conjugate_merge:
             if pair_seen.get(pair, False):
                 continue
@@ -177,8 +177,6 @@ def search_routes(words, start_word, start_char, end_char, end_word,
     # 赤は除外、青は優先
     words = [w for w in words if w not in red_words]
     blue_set = set(blue_words)
-
-    # 青優先
     words = sorted(words, key=lambda w: (w not in blue_set))
 
     # 開始条件
@@ -236,7 +234,6 @@ def search_routes(words, start_word, start_char, end_char, end_word,
                            anti_loop_physical=anti_loop_physical):
                 dfs(path + [w])
 
-    # 開始候補
     for w in words:
         if ok_start(w):
             dfs([w])
@@ -275,7 +272,7 @@ def search():
         allow_handaku=d["allow_handaku"],
         char_limit_mode=d["char_limit_mode"],
         exclude_conjugate=d["exclude_conjugate"],
-        conjugate_merge=False  # UI にまだないので False
+        conjugate_merge=False
     )
 
     routes, checked, hit = search_routes(
