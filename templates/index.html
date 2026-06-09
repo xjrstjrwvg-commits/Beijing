@@ -1,10 +1,17 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" class="">
 <head>
     <meta charset="UTF-8">
     <title>極・ULTRA ENGINE Pro</title>
     <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+
+    <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
 
     <style>
         html, body { overflow-x: hidden; }
@@ -27,9 +34,7 @@
 
 <div class="max-w-md mx-auto space-y-3">
 
-    <!-- ========================= -->
     <!-- Header -->
-    <!-- ========================= -->
     <header class="flex justify-between items-center py-1">
         <div class="flex items-center gap-3">
             <h1 class="text-xl font-black italic text-blue-600">Ultra Engine Pro</h1>
@@ -39,17 +44,11 @@
         <div class="flex gap-2">
             <button onclick="resetSettings()" class="bg-rose-200 text-rose-700 px-4 py-2 rounded-full text-[10px] font-bold">Reset</button>
             <button onclick="copyAll()" class="bg-slate-300 px-4 py-2 rounded-full text-[10px] font-bold">Copy</button>
-
-            <!-- ★ Favorites -->
-            <button onclick="openFavorites()" class="bg-yellow-300 text-yellow-900 px-4 py-2 rounded-full text-[10px] font-bold">
-                ★
-            </button>
+            <button onclick="openFavorites()" class="bg-yellow-300 text-yellow-900 px-4 py-2 rounded-full text-[10px] font-bold">★</button>
         </div>
     </header>
 
-    <!-- ========================= -->
     <!-- 基本入力 -->
-    <!-- ========================= -->
     <div class="glass rounded-2xl p-4 space-y-4">
 
         <input id="sw" placeholder="開始単語（空なら自由）" class="w-full">
@@ -61,14 +60,12 @@
             <input id="ew" placeholder="終了単語">
         </div>
 
-        <!-- ========================= -->
-        <!-- 詳細設定（ここから Part2） -->
-        <!-- ========================= -->
+        <!-- 詳細設定 -->
         <details class="border rounded-2xl p-2 bg-slate-50/50 dark:bg-slate-800/20">
             <summary class="text-center py-2 text-[11px] font-bold text-blue-600 cursor-pointer">＋ 詳細設定</summary>
 
             <div class="space-y-4 pt-1 pb-2">
-                <!-- 全語開始字 / 全語終了字 -->
+
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="text-[10px] font-bold text-blue-500 ml-1">全語開始字</label>
@@ -80,13 +77,11 @@
                     </div>
                 </div>
 
-                <!-- 使える文字 -->
                 <div>
                     <label class="text-[10px] font-bold text-emerald-500 ml-1">使える文字</label>
                     <input id="valid_chars" class="w-32">
                 </div>
 
-                <!-- 使用不可 / 禁止開始 -->
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="text-[10px] font-bold text-slate-300 dark:text-slate-200 ml-1">使用不可</label>
@@ -98,7 +93,6 @@
                     </div>
                 </div>
 
-                <!-- 合計文字数 -->
                 <div>
                     <label class="text-[10px] font-bold text-blue-500 ml-1">合計文字数</label>
                     <div class="flex gap-2">
@@ -108,7 +102,6 @@
                     </div>
                 </div>
 
-                <!-- 文字数構成 / ソート -->
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="text-[10px] font-bold text-blue-500 ml-1">文字数構成</label>
@@ -129,9 +122,7 @@
                     </div>
                 </div>
 
-                <!-- ========================= -->
-                <!-- 50音ずらし（専用枠） -->
-                <!-- ========================= -->
+                <!-- 50音ずらし -->
                 <div class="space-y-1">
                     <div class="text-[10px] font-bold text-blue-500">50音ずらし（専用枠）</div>
 
@@ -140,7 +131,7 @@
                     </label>
 
                     <div class="flex items-center gap-2">
-                        <span class="text-[10px] font-bold">ずらし値（負の値も可）</span>
+                        <span class="text-[10px] font-bold">ずらし値</span>
                         <button onclick="stepValue('ks_abs',-1)" class="step-btn">-</button>
                         <input id="ks_abs" type="number" value="1" class="w-16 text-center">
                         <button onclick="stepValue('ks_abs',1)" class="step-btn">+</button>
@@ -159,9 +150,7 @@
                     </div>
                 </div>
 
-                <!-- ========================= -->
-                <!-- 正規化オプション -->
-                <!-- ========================= -->
+                <!-- 正規化 -->
                 <div class="flex flex-wrap gap-3 text-[11px] font-bold">
                     <label><input type="checkbox" id="unify_small"> 大=小</label>
                     <label><input type="checkbox" id="allow_daku"> 濁点OK</label>
@@ -175,9 +164,7 @@
             </div>
         </details>
 
-        <!-- ========================= -->
-        <!-- 単語数 / タイムアウト / limit -->
-        <!-- ========================= -->
+        <!-- 単語数 / timeout / limit -->
         <div class="glass rounded-xl p-3 space-y-3 mt-3">
 
             <label class="text-[10px] font-bold">単語数（max_len）</label>
@@ -218,9 +205,7 @@
 
         </div>
 
-        <!-- ========================= -->
         <!-- カテゴリ + Explore -->
-        <!-- ========================= -->
         <div class="flex justify-between items-center pt-1">
             <div class="flex gap-3 text-[11px] font-bold">
                 <label><input type="checkbox" name="cat" value="country" checked> 国</label>
@@ -237,14 +222,10 @@
 
     </div>
 
-    <!-- ========================= -->
     <!-- 結果表示 -->
-    <!-- ========================= -->
     <div id="res" class="space-y-3 pb-20"></div>
 
-    <!-- ========================= -->
     <!-- Dictionary Manager -->
-    <!-- ========================= -->
     <div id="dict-manager" class="hidden fixed inset-0 z-50 bg-white dark:bg-slate-950 p-5 overflow-y-auto">
         <button onclick="hideDict()" class="mb-4 font-bold text-rose-500">CLOSE</button>
 
@@ -260,9 +241,7 @@
         Dictionary
     </button>
 
-    <!-- ========================= -->
     <!-- Favorites -->
-    <!-- ========================= -->
     <div id="fav-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex justify-center items-end">
         <div class="bg-white dark:bg-slate-900 w-full max-w-md p-5 rounded-t-2xl">
 
@@ -276,10 +255,7 @@
     </div>
 
 </div>
-
-<!-- ========================= -->
 <!-- JS -->
-<!-- ========================= -->
 <script>
 function el(id){ return document.getElementById(id); }
 
@@ -297,13 +273,8 @@ function toggleDarkMode(){
 /* Dictionary Manager */
 let wordStates = {};
 
-function showDict(){
-    el("dict-manager").classList.remove("hidden");
-}
-
-function hideDict(){
-    el("dict-manager").classList.add("hidden");
-}
+function showDict(){ el("dict-manager").classList.remove("hidden"); }
+function hideDict(){ el("dict-manager").classList.add("hidden"); }
 
 function bulkSet(color){
     for(const k in wordStates){
