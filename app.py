@@ -81,7 +81,7 @@ def apply_physical_shift(c, pos_shift):
 
 
 # ============================
-# 接続判定（あなたの仕様 1〜6 全部入り）
+# 接続判定（仕様 1〜6 全部入り）
 # ============================
 def can_connect(prev, nxt, *, unify_small, allow_daku, allow_handaku,
                 ks_abs, shift_mode, pos_shift,
@@ -119,7 +119,7 @@ def can_connect(prev, nxt, *, unify_small, allow_daku, allow_handaku,
 
 
 # ============================
-# 単語フィルタ（2,3,4）
+# 単語フィルタ（重複禁止 / 共役排除 / 共役集約）
 # ============================
 def filter_words(words, *, unify_small, allow_daku, allow_handaku,
                  char_limit_mode, exclude_conjugate, conjugate_merge):
