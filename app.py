@@ -1,214 +1,302 @@
-import os, time, sys, re, random
-from flask import Flask, render_template, request, jsonify
-from collections import Counter, defaultdict
-# 外部化した辞書データをインポート
-try:
-    from dictionary import DICTIONARY_MASTER
-except ImportError:
-    # 辞書ファイルがない場合のエラー回避（デバッグ用）
-    DICTIONARY_MASTER = {"country": ["ニホン"], "capital": ["トウキョウ"]}
+from flask import Flask, request, jsonify, render_template
+import time
+import threading
 
-sys.setrecursionlimit(10000)
 app = Flask(__name__)
 
-# --- 定数・マッピング ---
-KANA_LIST = (
-    "アイウエオ" "カキクケコ" "ガギグゲゴ" "サシスセソ" "ザジズゼゾ"
-    "タチツテト" "ダヂヅデド" "ナニヌネノ" "ハヒフヘホ" "バビブベボ"
-    "パピプペポ" "マミムメモ" "ヤユヨ" "ラリルレロ" "ワン"
-)
-SMALL_TO_LARGE = {"ァ": "ア", "ィ": "イ", "ゥ": "ウ", "ェ": "エ", "ォ": "オ", "ッ": "ツ", "ャ": "ヤ", "ュ": "ユ", "ョ": "ヨ", "ヮ": "ワ"}
-DAKU_MAP = {"カ":"ガ", "キ":"ギ", "ク":"グ", "ケ":"ゲ", "コ":"ゴ", "サ":"ザ", "シ":"ジ", "ス":"ズ", "セ":"ゼ", "ソ":"ゾ", "タ":"ダ", "チ":"ヂ", "ツ":"ヅ", "テ":"デ", "ト":"ド", "ハ":"バ", "ヒ":"ビ", "フ":"ブ", "ヘ":"ベ", "ホ":"ボ"}
-HANDAKU_MAP = {"ハ":"パ", "ヒ":"ピ", "フ":"プ", "ヘ":"ペ", "ホ":"ポ"}
+# ============================
+# 辞書読み込み
+# ============================
+from dictionary import COUNTRY_LIST, CAPITAL_LIST, CUSTOM_LIST
 
-REV_DAKU = {v: k for k, v in DAKU_MAP.items()}
-REV_HANDAKU = {v: k for k, v in HANDAKU_MAP.items()}
+def load_words(categories):
+    words = []
+    if "country" in categories:
+        words += COUNTRY_LIST
+    if "capital" in categories:
+        words += CAPITAL_LIST
+    if "custom" in categories:
+        words += CUSTOM_LIST
+    return words
 
-# --- ユーティリティ ---
-def to_katakana(text):
-    if not text: return ""
-    return "".join([chr(ord(c) + 96) if 0x3041 <= ord(c) <= 0x3096 else c for c in text])
 
-def get_base_char(c, unify_small=False, unify_daku=False, unify_handaku=False):
-    res = SMALL_TO_LARGE.get(c, c) if unify_small else c
-    if unify_daku: res = REV_DAKU.get(res, res)
-    if unify_handaku: res = REV_HANDAKU.get(res, res)
-    return res
+# ============================
+# 正規化
+# ============================
+SMALL_MAP = {
+    "ァ":"ア","ィ":"イ","ゥ":"ウ","ェ":"エ","ォ":"オ",
+    "ッ":"ツ","ャ":"ヤ","ュ":"ユ","ョ":"ヨ",
+    "ぁ":"あ","ぃ":"い","ぅ":"う","ぇ":"え","ぉ":"お",
+    "っ":"つ","ゃ":"や","ゅ":"ゆ","ょ":"よ"
+}
 
-def get_clean_char(w, pos="head", offset=0, unify_s=False, unify_d=False, unify_h=False):
-    text = w.replace("ー", "")
-    if not text: return ""
-    try:
-        idx = offset if pos == "head" else -(1 + offset)
-        char = text[idx]
-        return get_base_char(char, unify_s, unify_d, unify_h)
-    except IndexError: return ""
+DAKU_MAP = {
+    "ガ":"カ","ギ":"キ","グ":"ク","ゲ":"ケ","ゴ":"コ",
+    "ザ":"サ","ジ":"シ","ズ":"ス","ゼ":"セ","ゾ":"ソ",
+    "ダ":"タ","ヂ":"チ","ヅ":"ツ","デ":"テ","ド":"ト",
+    "バ":"ハ","ビ":"ヒ","ブ":"フ","ベ":"ヘ","ボ":"ホ",
+    "が":"か","ぎ":"き","ぐ":"く","げ":"け","ご":"こ",
+    "ざ":"さ","じ":"し","ず":"す","ぜ":"せ","ぞ":"そ",
+    "だ":"た","ぢ":"ち","づ":"つ","で":"て","ど":"と",
+    "ば":"は","び":"ひ","ぶ":"ふ","べ":"へ","ぼ":"ほ"
+}
 
-def shift_kana(char, n):
-    if char not in KANA_LIST: return char
-    return KANA_LIST[(KANA_LIST.index(char) + n) % len(KANA_LIST)]
+HANDAKU_MAP = {
+    "パ":"ハ","ピ":"ヒ","プ":"フ","ペ":"ヘ","ポ":"ホ",
+    "ぱ":"は","ぴ":"ひ","ぷ":"ふ","ぺ":"へ","ぽ":"ほ"
+}
 
-def get_variants(char, allow_daku, allow_handaku, unify=False):
-    base = SMALL_TO_LARGE.get(char, char) if unify else char
-    variants = {base}
-    if allow_daku:
-        for k, v in DAKU_MAP.items():
-            if base == k: variants.add(v)
-            if base == v: variants.add(k)
-    if allow_handaku:
-        for k, v in HANDAKU_MAP.items():
-            if base == k: variants.add(v)
-            if base == v: variants.add(k)
-    return variants
+def normalize_char(c, unify_small, allow_daku, allow_handaku):
+    if unify_small and c in SMALL_MAP:
+        c = SMALL_MAP[c]
+    if allow_daku and c in DAKU_MAP:
+        c = DAKU_MAP[c]
+    if allow_handaku and c in HANDAKU_MAP:
+        c = HANDAKU_MAP[c]
+    return c
 
-@app.route('/')
-def index(): return render_template('index.html')
+def normalize_word(w, unify_small, allow_daku, allow_handaku):
+    return "".join(normalize_char(c, unify_small, allow_daku, allow_handaku) for c in w)
 
-@app.route('/get_dictionary')
-def get_dictionary(): return jsonify(DICTIONARY_MASTER)
 
-@app.route('/search', methods=['POST'])
-def search():
-    d = request.json
-    timeout, limit, limit_en = int(d.get('timeout', 15)), int(d.get('limit', 1500)), d.get('limit_enabled', True)
-    max_len, p_shift = int(d.get('max_len', 5)), int(d.get('pos_shift', 0))
-    use_shift, ks_val, s_mode = d.get('use_shift', False), int(d.get('ks_abs', 1)), d.get('shift_mode', 'abs')
-    
-    u_small, u_daku, u_handaku = d.get('unify_small', False), d.get('allow_daku', False), d.get('allow_handaku', False)
-    scope = d.get('unify_scope', 'all')
-    
-    conn_s, conn_d, conn_h = (u_small and scope in ['all', 'conn']), (u_daku and scope in ['all', 'conn']), (u_handaku and scope in ['all', 'conn'])
-    filt_s, filt_d, filt_h = (u_small and scope in ['all', 'filter']), (u_daku and scope in ['all', 'filter']), (u_handaku and scope in ['all', 'filter'])
+# ============================
+# ずらし
+# ============================
+KANA = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン"
 
-    len_mode = d.get('len_mode', 'free')
-    raw_valid = to_katakana(d.get('valid_chars', ""))
-    valid_chars = set(raw_valid.replace("、", "").replace(",", "")) if raw_valid else None
-
-    red_words, blue_words = set(d.get('red_words', [])), set(d.get('blue_words', []))
-    asc = [get_clean_char(c.strip(), "head", 0, filt_s, filt_d, filt_h) for c in re.split('[、,]', to_katakana(d.get('all_start_char', ""))) if c.strip()]
-    aec = [get_clean_char(c.strip(), "head", 0, filt_s, filt_d, filt_h) for c in re.split('[、,]', to_katakana(d.get('all_end_char', ""))) if c.strip()]
-    ex_list = [get_base_char(c.strip(), filt_s, filt_d, filt_h) for c in re.split('[、,]', to_katakana(d.get('exclude_chars', ""))) if c.strip()]
-    bs_list = [get_base_char(c.strip(), filt_s, filt_d, filt_h) for c in re.split('[、,]', to_katakana(d.get('ban_start_chars', ""))) if c.strip()]
-    must_chars = [get_base_char(c, filt_s, filt_d, filt_h) for c in re.split('[、,]', to_katakana(d.get('must_char', ""))) if c]
-    
-    start_word = to_katakana(d.get('start_word', ""))
-    start_char = get_clean_char(to_katakana(d.get('start_char', "")), "head", 0, filt_s, filt_d, filt_h)
-    end_char = get_clean_char(to_katakana(d.get('end_char', "")), "head", 0, filt_s, filt_d, filt_h)
-
-    raw_pool = []
-    for cat in d.get('categories', ["country"]): raw_pool.extend(DICTIONARY_MASTER.get(cat, []))
-    raw_pool = list(set(raw_pool))
-
-    temp_pool = []
-    for w in raw_pool:
-        if w in red_words: continue
-        if valid_chars and not all(get_base_char(c, filt_s, filt_d, filt_h) in valid_chars for c in w.replace("ー", "")): continue
-        h_char = get_clean_char(w, "head", 0, filt_s, filt_d, filt_h)
-        t_char = get_clean_char(w, "tail", 0, filt_s, filt_d, filt_h)
-        if asc and h_char not in asc: continue
-        if aec and t_char not in aec: continue
-        norm_w = "".join([get_base_char(c, filt_s, filt_d, filt_h) for c in w])
-        if any(ex in norm_w for ex in ex_list): continue
-        if any(h_char == bs for bs in bs_list): continue
-        temp_pool.append(w)
-
-    if d.get('exclude_conjugate'):
-        pair_map = defaultdict(list)
-        for w in temp_pool:
-            ch = get_clean_char(w, "head", 0, conn_s, conn_d, conn_h)
-            ct = get_clean_char(w, "tail", 0, conn_s, conn_d, conn_h)
-            pair_map[f"{ch}_{ct}"].append(w)
-        word_pool = []
-        for words in pair_map.values():
-            if len(words) == 1: word_pool.append(words[0])
+def apply_shift_char(c, ks_abs, shift_mode):
+    if c not in KANA:
+        return c
+    idx = KANA.index(c)
+    if shift_mode == "abs":
+        return KANA[(idx + ks_abs) % len(KANA)]
     else:
-        word_pool = temp_pool
+        return KANA[(idx + ks_abs) % len(KANA)]
 
-    head_index, tail_index = defaultdict(list), defaultdict(list)
-    for w in word_pool:
-        head_index[get_clean_char(w, "head", 0, conn_s, conn_d, conn_h)].append(w)
-        tail_index[get_clean_char(w, "tail", 0, conn_s, conn_d, conn_h)].append(w)
+def apply_physical_shift(c, pos_shift):
+    if c not in KANA:
+        return c
+    idx = KANA.index(c)
+    return KANA[(idx + pos_shift) % len(KANA)]
 
-    results, start_time = [], time.time()
 
-    def solve(path, current_total_len):
-        if time.time() - start_time > timeout or (limit_en and len(results) >= limit): return
-        if len_mode == 'diff' and len(path) > 1:
-            lens = [len(x) for x in path]
-            if len(lens) != len(set(lens)): return
+# ============================
+# 接続判定（あなたの仕様 1〜6 全部入り）
+# ============================
+def can_connect(prev, nxt, *, unify_small, allow_daku, allow_handaku,
+                ks_abs, shift_mode, pos_shift,
+                auto_recovery, anti_loop, anti_loop_physical):
 
-        if len(path) == max_len:
-            if len_mode == 'same' and len(set(len(x) for x in path)) > 1: return
-            path_set = set(path)
-            if not blue_words.issubset(path_set): return
-            norm_t = "".join([get_base_char(c, filt_s, filt_d, filt_h) for c in "".join(path)])
+    prev_norm = normalize_word("".join(apply_shift_char(c, ks_abs, shift_mode) for c in prev),
+                               unify_small, allow_daku, allow_handaku)
+    nxt_norm  = normalize_word("".join(apply_shift_char(c, ks_abs, shift_mode) for c in nxt),
+                               unify_small, allow_daku, allow_handaku)
 
-            def check_list(lst):
-                for group in lst:
-                    target_cnt, g_shift, items = 1, 0, []
-                    for itm in group:
-                        if ':' in itm:
-                            ps = itm.split(':')
-                            if ps.upper() == 'S': g_shift = int(ps)
-                            else: target_cnt = int(ps if ps.isdigit() else ps)
-                        else: items.append(itm)
-                    total = sum(norm_t.count("".join([get_base_char(shift_kana(c, g_shift), filt_s, filt_d, filt_h) for c in it])) for it in items)
-                    if (d.get('exclusive_choice') and total != target_cnt) or (not d.get('exclusive_choice') and total < target_cnt): return False
+    prev_last = prev_norm[-1]
+    nxt_head  = nxt_norm[0]
+
+    # ⑤ 1文字ループ拒否
+    if anti_loop:
+        if prev_last == nxt_head:
+            return False
+
+    # ⑥ 物理ずらし戻り拒否
+    if anti_loop_physical:
+        if apply_physical_shift(prev[-1], pos_shift) == apply_physical_shift(nxt[0], pos_shift):
+            return False
+
+    # 通常接続
+    if prev_last == nxt_head:
+        return True
+
+    # ① 遡り接続
+    if auto_recovery:
+        for i in range(2, len(prev_norm)+1):
+            if prev_norm[-i] == nxt_head:
                 return True
 
-            if not (check_list(d.get('group_constraints', [])) and check_list(d.get('choice_constraints', []))): return
-            if must_chars and not all(norm_t.count(mc) >= 1 and (norm_t.count(mc) == 1 if d.get('once_constraint') else True) for mc in must_chars): return
-            
-            # --- 【修正】文字数計（target_total_len）が空文字でない場合のみ完全一致チェックを実行 ---
-            ttl_val = d.get('target_total_len')
-            if ttl_val is not None and str(ttl_val).strip() != "":
-                if current_total_len != int(ttl_val): return
-                
-            if end_char and get_clean_char(path[-1], "tail", 0, conn_s, conn_d, conn_h) not in get_variants(end_char, u_daku, u_handaku, conn_s): return
-            results.append(list(path))
+    return False
+
+
+# ============================
+# 単語フィルタ（2,3,4）
+# ============================
+def filter_words(words, *, unify_small, allow_daku, allow_handaku,
+                 char_limit_mode, exclude_conjugate, conjugate_merge):
+
+    norm_words = [normalize_word(w, unify_small, allow_daku, allow_handaku) for w in words]
+
+    pair_count = {}
+    for nw in norm_words:
+        pair = (nw[0], nw[-1])
+        pair_count[pair] = pair_count.get(pair, 0) + 1
+
+    pair_seen = {}
+    result = []
+
+    for w, nw in zip(words, norm_words):
+        pair = (nw[0], nw[-1])
+
+        # ② 重複禁止
+        if char_limit_mode:
+            if len(set(nw)) != len(nw):
+                continue
+
+        # ③ 共役排除
+        if exclude_conjugate:
+            if pair_count[pair] >= 2:
+                continue
+
+        # ④ 共役集約
+        if conjugate_merge:
+            if pair_seen.get(pair, False):
+                continue
+            pair_seen[pair] = True
+
+        result.append(w)
+
+    return result
+
+
+# ============================
+# 探索
+# ============================
+def search_routes(words, start_word, start_char, end_char, end_word,
+                  max_len, timeout, timeout_enabled, limit, limit_enabled,
+                  unify_small, allow_daku, allow_handaku,
+                  ks_abs, shift_mode, pos_shift,
+                  auto_recovery, anti_loop, anti_loop_physical,
+                  red_words, blue_words,
+                  early_cut, realtime_counter):
+
+    start_time = time.time()
+    results = []
+    checked = 0
+    hit = 0
+
+    # 赤は除外、青は優先
+    words = [w for w in words if w not in red_words]
+    blue_set = set(blue_words)
+
+    # 青優先
+    words = sorted(words, key=lambda w: (w not in blue_set))
+
+    # 開始条件
+    def ok_start(w):
+        if start_word:
+            return w == start_word
+        if start_char:
+            return normalize_char(w[0], unify_small, allow_daku, allow_handaku) == \
+                   normalize_char(start_char, unify_small, allow_daku, allow_handaku)
+        return True
+
+    # 終了条件
+    def ok_end(w):
+        if end_word:
+            return w == end_word
+        if end_char:
+            return normalize_char(w[-1], unify_small, allow_daku, allow_handaku) == \
+                   normalize_char(end_char, unify_small, allow_daku, allow_handaku)
+        return True
+
+    # DFS
+    def dfs(path):
+        nonlocal checked, hit, results
+
+        if timeout_enabled and time.time() - start_time > timeout:
             return
-        
-        is_odd = (len(path) % 2 != 0)
-        last_word_clean = path[-1].replace("ー","")
-        base_offsets = [p_shift] + ([i for i in range(p_shift+1, len(last_word_clean))] if d.get('auto_recovery') else [])
-        
-        for off in base_offsets:
-            src = get_clean_char(path[-1], ("tail" if not d.get('round_trip') or is_odd else "head"), off, conn_s, conn_d, conn_h)
-            if not src: continue
-            raw_ts = {shift_kana(src, ks_val if s_mode!='abs' else abs(ks_val)), shift_kana(src, -abs(ks_val))} if use_shift and s_mode == 'abs' else {shift_kana(src, ks_val)} if use_shift else {src}
-            targets = set()
-            for rt in raw_ts: targets.update(get_variants(rt, u_daku, u_handaku, conn_s))
-            found = False
-            for tc in targets:
-                cands = (tail_index if (d.get('round_trip') and is_odd) else head_index).get(tc, [])
-                for nxt in cands:
-                    if nxt in path: continue
-                    if d.get('char_limit_mode'):
-                        p_txt = "".join([get_base_char(c, filt_s, filt_d, filt_h) for c in "".join(path)])
-                        n_txt = "".join([get_base_char(c, filt_s, filt_d, filt_h) for c in nxt])
-                        if not set(p_txt).isdisjoint(set(n_txt)): continue
-                    found = True
-                    solve(path + [nxt], current_total_len + len(nxt))
-            if found: break
 
-    starts = [start_word] if start_word in word_pool else word_pool
-    for w in sorted(starts):
-        if not start_word and start_char and get_clean_char(w, "head", 0, filt_s, filt_d, filt_h) != start_char: continue
-        solve([w], len(w))
-    
-    # --- 【修正】4択（50音順・文字数多い順・少ない順・ランダム）に最適化したソート処理 ---
-    sm = d.get('sort_mode', 'kana')
-    if sm == 'kana': 
-        results.sort()
-    elif sm == 'len_asc': 
-        results.sort(key=lambda x: len("".join(x)))
-    elif sm == 'len_desc': 
-        results.sort(key=lambda x: len("".join(x)), reverse=True)
-    elif sm == 'random': 
-        random.shuffle(results)
-        
-    return jsonify({"routes": results, "count": len(results)})
+        if limit_enabled and len(results) >= limit:
+            return
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+        last = path[-1]
+
+        if ok_end(last):
+            results.append(path[:])
+            hit += 1
+            if early_cut:
+                return
+
+        if len(path) >= max_len:
+            return
+
+        for w in words:
+            checked += 1
+            if w in path:
+                continue
+            if can_connect(last, w,
+                           unify_small=unify_small,
+                           allow_daku=allow_daku,
+                           allow_handaku=allow_handaku,
+                           ks_abs=ks_abs,
+                           shift_mode=shift_mode,
+                           pos_shift=pos_shift,
+                           auto_recovery=auto_recovery,
+                           anti_loop=anti_loop,
+                           anti_loop_physical=anti_loop_physical):
+                dfs(path + [w])
+
+    # 開始候補
+    for w in words:
+        if ok_start(w):
+            dfs([w])
+
+    return results, checked, hit
+
+
+# ============================
+# API
+# ============================
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/get_dictionary")
+def get_dictionary():
+    return jsonify({
+        "country": COUNTRY_LIST,
+        "capital": CAPITAL_LIST,
+        "custom": CUSTOM_LIST
+    })
+
+
+@app.route("/search", methods=["POST"])
+def search():
+    d = request.json
+
+    words = load_words(d["categories"])
+
+    # 単語フィルタ
+    words = filter_words(
+        words,
+        unify_small=d["unify_small"],
+        allow_daku=d["allow_daku"],
+        allow_handaku=d["allow_handaku"],
+        char_limit_mode=d["char_limit_mode"],
+        exclude_conjugate=d["exclude_conjugate"],
+        conjugate_merge=False  # UI にまだないので False
+    )
+
+    routes, checked, hit = search_routes(
+        words,
+        d["start_word"], d["start_char"], d["end_char"], d["end_word"],
+        d["max_len"], d["timeout"], d["timeout_enabled"],
+        d["limit"], d["limit_enabled"],
+        d["unify_small"], d["allow_daku"], d["allow_handaku"],
+        d["ks_abs"], d["shift_mode"], d["pos_shift"],
+        d["auto_recovery"], d["anti_loop"], d["anti_loop_physical"],
+        d["red_words"], d["blue_words"],
+        d["display_mode"] == "early",
+        d["realtime_counter"]
+    )
+
+    return jsonify({
+        "routes": routes,
+        "checked": checked,
+        "hit": hit
+    })
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
