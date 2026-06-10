@@ -45,7 +45,7 @@
 
         <div class="grid grid-cols-4 gap-2">
             <input id="sc" placeholder="開始字">
-            <input id="mc" placeholder="必須文字（ア,イ:2,ウ=1）">
+            <input id="mc" placeholder="必須文字（ア,イ:2,ウ=1,〇=7）">
             <input id="ec" placeholder="終了字">
             <input id="ew" placeholder="終了単語">
         </div>
@@ -154,15 +154,8 @@
             </div>
         </details>
 
-        <!-- 単語数 / timeout / limit -->
+        <!-- timeout / limit / exact_limit -->
         <div class="glass rounded-xl p-3 space-y-3 mt-3">
-
-            <label class="text-[10px] font-bold">単語数（max_len）</label>
-            <div class="flex gap-2">
-                <button onclick="stepValue('ml',-1)" class="step-btn">-</button>
-                <input id="ml" type="number" value="5" class="w-16 text-center">
-                <button onclick="stepValue('ml',1)" class="step-btn">+</button>
-            </div>
 
             <label class="text-[10px] font-bold">タイムアウト（秒）</label>
             <div class="flex gap-2">
@@ -180,37 +173,46 @@
                 <label><input type="checkbox" id="limit_enabled" checked> 有効</label>
             </div>
 
-            <label class="text-[10px] font-bold text-rose-500">
-                <input type="checkbox" id="early_cut"> その件数で強制終了
-            </label>
-
             <label class="text-[10px] font-bold text-blue-600">
                 <input type="checkbox" id="realtime_counter"> リアルタイム件数表示
             </label>
 
-            <div id="counter_box" class="hidden text-[11px]">
-                <div>調査件数: <span id="checked_count">0</span></div>
-                <div>ヒット件数: <span id="hit_count">0</span></div>
+            <label class="text-[10px] font-bold text-rose-500">
+                <input type="checkbox" id="early_cut"> その件数で強制終了
+            </label>
+
+            <label class="text-[10px] font-bold text-emerald-600">
+                <input type="checkbox" id="anti_loop"> 1文字ループ拒否
+            </label>
+
+            <label class="text-[10px] font-bold text-purple-600">
+                <input type="checkbox" id="exact_limit_enabled"> exact_limit を使う
+            </label>
+
+            <div class="flex gap-2">
+                <button onclick="stepValue('exact_limit',-1)" class="step-btn">-</button>
+                <input id="exact_limit" type="number" value="0" class="w-16 text-center">
+                <button onclick="stepValue('exact_limit',1)" class="step-btn">+</button>
             </div>
 
         </div>
-<!-- カテゴリ + Explore -->
-<div class="flex justify-between items-center pt-1">
-    <div class="flex gap-3 text-[11px] font-bold">
-        <label><input type="checkbox" name="cat" value="country" checked> 国</label>
-        <label><input type="checkbox" name="cat" value="capital" checked> 首都</label>
-        <label><input type="checkbox" name="cat" value="custom"> カスタム</label>
+
+        <!-- カテゴリ + Explore -->
+        <div class="flex justify-between items-center pt-1">
+            <div class="flex gap-3 text-[11px] font-bold">
+                <label><input type="checkbox" name="cat" value="country" checked> 国</label>
+                <label><input type="checkbox" name="cat" value="capital" checked> 首都</label>
+                <label><input type="checkbox" name="cat" value="custom"> カスタム</label>
+            </div>
+
+            <button id="btn" onclick="run()" class="bg-blue-600 text-white font-black px-6 py-2 rounded-xl text-[11px]">
+                Explore
+            </button>
+        </div>
+
+        <div id="stats" class="text-center text-[10px] font-bold text-blue-500 hidden"></div>
+
     </div>
-
-    <button id="btn" onclick="run()" class="bg-blue-600 text-white font-black px-6 py-2 rounded-xl text-[11px]">
-        Explore
-    </button>
-</div>
-
-<div id="stats" class="text-center text-[10px] font-bold text-blue-500 hidden"></div>
-
-</div>
-
 <!-- 結果表示 -->
 <div id="res" class="space-y-3 pb-20"></div>
 
@@ -243,8 +245,7 @@
     </div>
 </div>
 
-</div>
-
+</div> <!-- max-w-md wrapper 終了 -->
 <!-- JS -->
 <script>
 function el(id){ return document.getElementById(id); }
@@ -342,13 +343,17 @@ function saveSettings(){
         round_trip: round_trip.checked,
         char_limit_mode: char_limit_mode.checked,
         exclude_conjugate: exclude_conjugate.checked,
-        ml: ml.value,
+
         timeout: timeout.value,
         timeout_enabled: timeout_enabled.checked,
         limit: limit.value,
         limit_enabled: limit_enabled.checked,
         early_cut: early_cut.checked,
         realtime_counter: realtime_counter.checked,
+
+        exact_limit_enabled: exact_limit_enabled.checked,
+        exact_limit: exact_limit.value,
+
         categories: [...document.querySelectorAll('input[name="cat"]:checked')].map(c=>c.value),
         wordStates
     };
@@ -409,17 +414,18 @@ async function run(){
         char_limit_mode: char_limit_mode.checked,
         exclude_conjugate: exclude_conjugate.checked,
 
-        /* ★ 重要：app.py が必須とする2項目（追加済み） */
-        anti_loop: false,
-        anti_loop_physical: false,
+        /* anti_loop_physical は削除済み */
+        anti_loop: anti_loop.checked,
 
-        max_len: parseInt(ml.value),
         timeout: parseInt(timeout.value),
         timeout_enabled: timeout_enabled.checked,
         limit: parseInt(limit.value),
         limit_enabled: limit_enabled.checked,
         display_mode: early_cut.checked ? "early" : "normal",
         realtime_counter: realtime_counter.checked,
+
+        exact_limit: exact_limit_enabled.checked ? parseInt(exact_limit.value) : null,
+
         categories: [...document.querySelectorAll('input[name="cat"]:checked')].map(c=>c.value),
         red_words: Object.keys(wordStates).filter(k=>wordStates[k]==="red"),
         blue_words: Object.keys(wordStates).filter(k=>wordStates[k]==="blue")
