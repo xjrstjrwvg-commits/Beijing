@@ -8,24 +8,14 @@
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = {
-            darkMode: 'class'
-        }
+        tailwind.config = { darkMode: 'class' }
     </script>
 
     <style>
         html, body { overflow-x: hidden; }
-
-        .glass {
-            @apply bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-xl;
-        }
-
-        input, select {
-            @apply bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl text-sm outline-none focus:ring-1 ring-blue-500;
-        }
-
+        .glass { @apply bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-xl; }
+        input, select { @apply bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl text-sm outline-none focus:ring-1 ring-blue-500; }
         .step-btn { @apply px-3 py-1 bg-slate-200 dark:bg-slate-700 rounded-lg font-bold; }
-
         ::-webkit-scrollbar { display:none; }
     </style>
 </head>
@@ -122,7 +112,7 @@
                     </div>
                 </div>
 
-                <!-- 50音ずらし -->
+                <!-- ずらし -->
                 <div class="space-y-1">
                     <div class="text-[10px] font-bold text-blue-500">50音ずらし（専用枠）</div>
 
@@ -204,57 +194,57 @@
             </div>
 
         </div>
-
-        <!-- カテゴリ + Explore -->
-        <div class="flex justify-between items-center pt-1">
-            <div class="flex gap-3 text-[11px] font-bold">
-                <label><input type="checkbox" name="cat" value="country" checked> 国</label>
-                <label><input type="checkbox" name="cat" value="capital" checked> 首都</label>
-                <label><input type="checkbox" name="cat" value="custom"> カスタム</label>
-            </div>
-
-            <button id="btn" onclick="run()" class="bg-blue-600 text-white font-black px-6 py-2 rounded-xl text-[11px]">
-                Explore
-            </button>
-        </div>
-
-        <div id="stats" class="text-center text-[10px] font-bold text-blue-500 hidden"></div>
-
+<!-- カテゴリ + Explore -->
+<div class="flex justify-between items-center pt-1">
+    <div class="flex gap-3 text-[11px] font-bold">
+        <label><input type="checkbox" name="cat" value="country" checked> 国</label>
+        <label><input type="checkbox" name="cat" value="capital" checked> 首都</label>
+        <label><input type="checkbox" name="cat" value="custom"> カスタム</label>
     </div>
 
-    <!-- 結果表示 -->
-    <div id="res" class="space-y-3 pb-20"></div>
-
-    <!-- Dictionary Manager -->
-    <div id="dict-manager" class="hidden fixed inset-0 z-50 bg-white dark:bg-slate-950 p-5 overflow-y-auto">
-        <button onclick="hideDict()" class="mb-4 font-bold text-rose-500">CLOSE</button>
-
-        <div class="grid grid-cols-2 gap-2 mb-4">
-            <button onclick="bulkSet('white')" class="bg-slate-200 p-3 rounded-xl font-bold">全開放</button>
-            <button onclick="bulkSet('red')" class="bg-rose-200 text-rose-700 p-3 rounded-xl font-bold">全禁止</button>
-        </div>
-
-        <div id="dict-list" class="grid grid-cols-2 gap-1 text-[11px]"></div>
-    </div>
-
-    <button onclick="showDict()" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full text-xs font-black">
-        Dictionary
+    <button id="btn" onclick="run()" class="bg-blue-600 text-white font-black px-6 py-2 rounded-xl text-[11px]">
+        Explore
     </button>
+</div>
 
-    <!-- Favorites -->
-    <div id="fav-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex justify-center items-end">
-        <div class="bg-white dark:bg-slate-900 w-full max-w-md p-5 rounded-t-2xl">
-
-            <div class="flex justify-between items-center mb-3">
-                <div class="text-lg font-bold text-blue-600">Favorites</div>
-                <button onclick="closeFavorites()" class="text-rose-500 font-bold">CLOSE</button>
-            </div>
-
-            <div id="fav-list" class="space-y-3 text-sm"></div>
-        </div>
-    </div>
+<div id="stats" class="text-center text-[10px] font-bold text-blue-500 hidden"></div>
 
 </div>
+
+<!-- 結果表示 -->
+<div id="res" class="space-y-3 pb-20"></div>
+
+<!-- Dictionary Manager -->
+<div id="dict-manager" class="hidden fixed inset-0 z-50 bg-white dark:bg-slate-950 p-5 overflow-y-auto">
+    <button onclick="hideDict()" class="mb-4 font-bold text-rose-500">CLOSE</button>
+
+    <div class="grid grid-cols-2 gap-2 mb-4">
+        <button onclick="bulkSet('white')" class="bg-slate-200 p-3 rounded-xl font-bold">全開放</button>
+        <button onclick="bulkSet('red')" class="bg-rose-200 text-rose-700 p-3 rounded-xl font-bold">全禁止</button>
+    </div>
+
+    <div id="dict-list" class="grid grid-cols-2 gap-1 text-[11px]"></div>
+</div>
+
+<button onclick="showDict()" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full text-xs font-black">
+    Dictionary
+</button>
+
+<!-- Favorites -->
+<div id="fav-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex justify-center items-end">
+    <div class="bg-white dark:bg-slate-900 w-full max-w-md p-5 rounded-t-2xl">
+
+        <div class="flex justify-between items-center mb-3">
+            <div class="text-lg font-bold text-blue-600">Favorites</div>
+            <button onclick="closeFavorites()" class="text-rose-500 font-bold">CLOSE</button>
+        </div>
+
+        <div id="fav-list" class="space-y-3 text-sm"></div>
+    </div>
+</div>
+
+</div>
+
 <!-- JS -->
 <script>
 function el(id){ return document.getElementById(id); }
@@ -418,6 +408,11 @@ async function run(){
         round_trip: round_trip.checked,
         char_limit_mode: char_limit_mode.checked,
         exclude_conjugate: exclude_conjugate.checked,
+
+        /* ★ 重要：app.py が必須とする2項目（追加済み） */
+        anti_loop: false,
+        anti_loop_physical: false,
+
         max_len: parseInt(ml.value),
         timeout: parseInt(timeout.value),
         timeout_enabled: timeout_enabled.checked,
