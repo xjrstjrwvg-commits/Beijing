@@ -159,7 +159,7 @@ def filter_words(words, *, unify_small, allow_daku, allow_handaku,
 
 
 # ============================
-# 探索
+# 探索（DFS）
 # ============================
 def search_routes(words, start_word, start_char, end_char, end_word,
                   max_len, timeout, timeout_enabled, limit, limit_enabled,
@@ -261,18 +261,6 @@ def get_dictionary():
 @app.route("/search", methods=["POST"])
 def search():
     d = request.json
-
-    # UI から送られてくる全パラメータを受け取る（未使用でも受け取る）
-    must_char = d.get("must_char")
-    all_start_char = d.get("all_start_char")
-    all_end_char = d.get("all_end_char")
-    valid_chars = d.get("valid_chars")
-    exclude_chars = d.get("exclude_chars")
-    ban_start_chars = d.get("ban_start_chars")
-    target_total_len = d.get("target_total_len")
-    len_mode = d.get("len_mode")
-    sort_mode = d.get("sort_mode")
-    round_trip = d.get("round_trip")
 
     # 単語読み込み
     words = load_words(d["categories"])
