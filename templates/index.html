@@ -246,6 +246,7 @@
 </div>
 
 </div> <!-- max-w-md wrapper 終了 -->
+
 <!-- JS -->
 <script>
 function el(id){ return document.getElementById(id); }
@@ -414,7 +415,6 @@ async function run(){
         char_limit_mode: char_limit_mode.checked,
         exclude_conjugate: exclude_conjugate.checked,
 
-        /* anti_loop_physical は削除済み */
         anti_loop: anti_loop.checked,
 
         timeout: parseInt(timeout.value),
@@ -461,7 +461,7 @@ function renderResults(){
                 </div>
             </div>
             <div class="font-bold text-sm break-words">${rt.join(" → ")}</div>
-            <div class="text-[9px] font-bold text-blue-500">${rt.join("").length} letters</div>
+            <div class="text-[9px] font-bold text-blue-500">${rt.length} words / ${rt.join("").length} letters</div>
         </div>
     `).join("");
 
