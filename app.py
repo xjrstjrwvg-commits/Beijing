@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Dict, Set, Tuple, Optional
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import unicodedata
 import time
 import random
@@ -504,12 +504,12 @@ def get_dictionary():
     })
 
 # =========================
-# root
+# root（index.html を返す）
 # =========================
 
 @app.route("/")
 def index():
-    return "ULTRA ENGINE Pro backend is running."
+    return render_template("index.html")
 
 if __name__ == "__main__":
     app.run(debug=True)
