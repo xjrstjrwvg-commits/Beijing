@@ -1,456 +1,290 @@
-from __future__ import annotations
-from dataclasses import dataclass
-from typing import List, Dict, Set, Optional
-from flask import Flask, request, jsonify, render_template
-import unicodedata
-import time
-import random
+import os, time, sys, re, random
+from flask import Flask, render_template, request, jsonify
+from collections import defaultdict
 
-# =========================
-# 辞書（dictionary.py）
-# =========================
-
+# --- 辞書読み込み ---
 try:
     from dictionary import DICTIONARY_MASTER
-    COUNTRY = DICTIONARY_MASTER["country"]
-    CAPITAL = DICTIONARY_MASTER["capital"]
-    CUSTOM = DICTIONARY_MASTER["custom"]
-except:
-    COUNTRY, CAPITAL, CUSTOM = [], [], []
+except ImportError:
+    DICTIONARY_MASTER = {"country": ["ニホン"], "capital": ["トウキョウ"], "custom": []}
 
+sys.setrecursionlimit(10000)
 app = Flask(__name__)
 
-# =========================
-# 正規化
-# =========================
+# --- かな処理 ---
+KANA_LIST = (
+    "アイウエオ"
+    "カキクケコガギグゲゴ"
+    "サシスセソザジズゼゾ"
+    "タチツテトダヂヅデド"
+    "ナニヌネノ"
+    "ハヒフヘホバビブベボパピプペポ"
+    "マミムメモ"
+    "ヤユヨ"
+    "ラリルレロ"
+    "ワヲン"
+)
 
-SMALL_MAP = {
-    "ァ": "ア","ィ": "イ","ゥ": "ウ","ェ": "エ","ォ": "オ",
-    "ャ": "ヤ","ュ": "ユ","ョ": "ヨ","ッ": "ツ",
-    "ぁ": "あ","ぃ": "い","ぅ": "う","ぇ": "え","ぉ": "お",
-    "ゃ": "や","ゅ": "ゆ","ょ": "よ","っ": "つ",
+SMALL_TO_LARGE = {
+    "ァ":"ア","ィ":"イ","ゥ":"ウ","ェ":"エ","ォ":"オ",
+    "ッ":"ツ","ャ":"ヤ","ュ":"ユ","ョ":"ヨ","ヮ":"ワ"
 }
 
-def normalize_kana(s: str, unify_small: bool, allow_daku: bool, allow_handaku: bool) -> str:
-    s = unicodedata.normalize("NFKC", s)
-    res = []
-    for ch in s:
-        base = SMALL_MAP[ch] if unify_small and ch in SMALL_MAP else ch
+DAKU_MAP = {
+    "カ":"ガ","キ":"ギ","ク":"グ","ケ":"ゲ","コ":"ゴ",
+    "サ":"ザ","シ":"ジ","ス":"ズ","セ":"ゼ","ソ":"ゾ",
+    "タ":"ダ","チ":"ヂ","ツ":"ヅ","テ":"デ","ト":"ド",
+    "ハ":"バ","ヒ":"ビ","フ":"ブ","ヘ":"ベ","ホ":"ボ"
+}
 
-        if not allow_daku or not allow_handaku:
-            decomp = unicodedata.normalize("NFD", base)
-            base_char = ""
-            for c in decomp:
-                if not unicodedata.combining(c):
-                    base_char = c
-            base = base_char
+HANDAKU_MAP = {
+    "ハ":"パ","ヒ":"ピ","フ":"プ","ヘ":"ペ","ホ":"ポ"
+}
 
-        res.append(base)
-    return "".join(res)
+REV_DAKU = {v: k for k, v in DAKU_MAP.items()}
+REV_HANDAKU = {v: k for k, v in HANDAKU_MAP.items()}
 
-# =========================
-# ずらし / 物理ずらし
-# =========================
+def to_katakana(text):
+    if not text: return ""
+    return "".join([chr(ord(c)+96) if 0x3041 <= ord(c) <= 0x3096 else c for c in text])
 
-GOJUON_ROWS = [
-    "アイウエオ","カキクケコ","サシスセソ","タチツテト","ナニヌネノ",
-    "ハヒフヘホ","マミムメモ","ヤユヨ","ラリルレロ","ワヲン",
-]
-
-PHYS_MAP = {ch:(r,c) for r,row in enumerate(GOJUON_ROWS) for c,ch in enumerate(row)}
-
-def shift_kana(ch: str, ks_abs: int, mode: str):
-    for row in GOJUON_ROWS:
-        if ch in row:
-            idx = row.index(ch)
-            res = []
-            if mode == "abs":
-                for d in (-ks_abs, ks_abs):
-                    ni = idx + d
-                    if 0 <= ni < len(row):
-                        res.append(row[ni])
-            else:
-                ni = idx + ks_abs
-                if 0 <= ni < len(row):
-                    res.append(row[ni])
-            return list(dict.fromkeys(res))
-    return []
-
-def physical_shift(ch: str, offset: int):
-    if offset == 0 or ch not in PHYS_MAP:
-        return [ch]
-    r,c = PHYS_MAP[ch]
-    row = GOJUON_ROWS[r]
-    nc = c + offset
-    return [row[nc]] if 0 <= nc < len(row) else [ch]
-
-# =========================
-# 接続判定
-# =========================
-
-def first_char(w): return w[0] if w else ""
-def last_char(w): return w[-1] if w else ""
-
-def can_connect(prev, nxt, use_shift, ks_abs, shift_mode, pos_shift, round_trip, auto_recovery):
-    if not prev:
-        return True
-    lc = last_char(prev)
-    fc = first_char(nxt)
-
-    if round_trip and lc == fc:
-        return True
-    if use_shift and fc in shift_kana(lc, ks_abs, shift_mode):
-        return True
-    if pos_shift != 0 and fc in physical_shift(lc, pos_shift):
-        return True
-    if auto_recovery and len(prev) >= 2 and prev[-2] == fc:
-        return True
-
-    return lc == fc
-
-# =========================
-# 必須文字
-# =========================
-
-@dataclass
-class MustCharRule:
-    char: str
-    count: int
-
-def parse_must_chars(s: str):
-    if not s:
-        return []
-    res = []
-    for token in s.split(","):
-        token = token.strip()
-        if not token:
-            continue
-        if ":" in token:
-            ch,n = token.split(":",1)
-        elif "=" in token:
-            ch,n = token.split("=",1)
-        else:
-            ch,n = token,"1"
-        res.append(MustCharRule(ch.strip(), int(n)))
+def get_base_char(c, unify_small=False, unify_daku=False, unify_handaku=False):
+    res = SMALL_TO_LARGE.get(c, c) if unify_small else c
+    if unify_daku: res = REV_DAKU.get(res, res)
+    if unify_handaku: res = REV_HANDAKU.get(res, res)
     return res
 
-def check_must_chars(route, rules):
-    joined = "".join(route)
-    return all(joined.count(r.char) >= r.count for r in rules)
+def get_clean_char(w, pos="head", offset=0, us=False, ud=False, uh=False):
+    text = w.replace("ー","")
+    if not text: return ""
+    try:
+        idx = offset if pos=="head" else -(1+offset)
+        return get_base_char(text[idx], us, ud, uh)
+    except:
+        return ""
 
-# =========================
-# 文字制約
-# =========================
+def shift_kana(c, n):
+    if c not in KANA_LIST: return c
+    return KANA_LIST[(KANA_LIST.index(c)+n) % len(KANA_LIST)]
 
-def check_valid_chars(route, valid_chars, exclude_chars, char_limit_mode):
-    joined = "".join(route)
+def get_variants(c, allow_daku, allow_handaku, unify=False):
+    base = SMALL_TO_LARGE.get(c, c) if unify else c
+    s = {base}
+    if allow_daku:
+        for k,v in DAKU_MAP.items():
+            if base==k: s.add(v)
+            if base==v: s.add(k)
+    if allow_handaku:
+        for k,v in HANDAKU_MAP.items():
+            if base==k: s.add(v)
+            if base==v: s.add(k)
+    return s
 
-    if valid_chars:
-        for ch in joined:
-            if ch not in valid_chars:
-                return False
-
-    if exclude_chars:
-        for ch in joined:
-            if ch in exclude_chars:
-                return False
-
-    if char_limit_mode:
-        seen = set()
-        for ch in joined:
-            if ch in seen:
-                return False
-            seen.add(ch)
-
-    return True
-
-# =========================
-# 共役排除
-# =========================
-
-def normalize_for_conjugate(w):
-    for suf in ["共和国","連邦","王国","国"]:
-        if w.endswith(suf):
-            return w[:-len(suf)]
-    return w
-
-# =========================
-# DFS
-# =========================
-
-@dataclass
-class SearchConfig:
-    start_word: str
-    start_char: str
-    end_char: str
-    end_word: str
-    all_start_char: str
-    all_end_char: str
-    must_rules: List[MustCharRule]
-    target_total_len: Optional[int]
-    len_mode: str
-    use_shift: bool
-    ks_abs: int
-    shift_mode: str
-    pos_shift: int
-    unify_small: bool
-    allow_daku: bool
-    allow_handaku: bool
-    auto_recovery: bool
-    round_trip: bool
-    char_limit_mode: bool
-    exclude_conjugate: bool
-    anti_loop: bool
-    timeout: int
-    timeout_enabled: bool
-    limit: int
-    limit_enabled: bool
-    display_mode: str
-    realtime_counter: bool
-    valid_chars: str
-    exclude_chars: str
-    ban_start_chars: str
-    red_words: Set[str]
-    blue_words: Set[str]
-
-def filter_words(words, cfg):
-    res = []
-    for w in words:
-        if cfg.ban_start_chars and first_char(w) in cfg.ban_start_chars:
-            continue
-        if cfg.all_start_char and first_char(w) != cfg.all_start_char:
-            continue
-        if cfg.all_end_char and last_char(w) != cfg.all_end_char:
-            continue
-        res.append(w)
-    return res
-
-def dfs_search(words, cfg):
-    start_time = time.time()
-    routes = []
-
-    by_first = {}
-    for w in words:
-        by_first.setdefault(first_char(w), []).append(w)
-
-    def time_over():
-        return cfg.timeout_enabled and (time.time() - start_time) >= cfg.timeout
-
-    def dfs(route, used, conj_used):
-        if cfg.limit_enabled and len(routes) >= cfg.limit:
-            return
-        if time_over():
-            return
-
-        if route:
-            ok = True
-            if cfg.end_char and last_char(route[-1]) != cfg.end_char:
-                ok = False
-            if cfg.end_word and route[-1] != cfg.end_word:
-                ok = False
-            if cfg.must_rules and not check_must_chars(route, cfg.must_rules):
-                ok = False
-            if not check_valid_chars(route, cfg.valid_chars, cfg.exclude_chars, cfg.char_limit_mode):
-                ok = False
-            if ok:
-                routes.append(route.copy())
-
-        last_w = route[-1] if route else cfg.start_word
-        lc = last_char(last_w) if last_w else cfg.start_char
-
-        if cfg.anti_loop and len(route) >= 2:
-            if len(route[-1]) == 1 and len(route[-2]) == 1 and route[-1] == route[-2]:
-                return
-
-        cand = []
-        if lc in by_first:
-            cand.extend(by_first[lc])
-
-        if cfg.use_shift:
-            for c in shift_kana(lc, cfg.ks_abs, cfg.shift_mode):
-                cand.extend(by_first.get(c, []))
-
-        if cfg.pos_shift != 0:
-            for c in physical_shift(lc, cfg.pos_shift):
-                cand.extend(by_first.get(c, []))
-
-        cand = list(dict.fromkeys(cand))
-
-        for w in cand:
-            if w in used:
-                continue
-            if w in cfg.red_words:
-                continue
-
-            key = normalize_for_conjugate(w)
-            if cfg.exclude_conjugate and key in conj_used:
-                continue
-
-            used.add(w)
-            added = None
-            if cfg.exclude_conjugate:
-                conj_used.add(key)
-                added = key
-
-            route.append(w)
-            dfs(route, used, conj_used)
-            route.pop()
-            used.remove(w)
-            if added:
-                conj_used.remove(added)
-
-    if cfg.start_word:
-        if cfg.start_word in words:
-            dfs([cfg.start_word], {cfg.start_word}, set())
-        else:
-            dfs([cfg.start_word], set(), set())
-        return routes
-
-    starts = [w for w in words if first_char(w) == cfg.start_char] if cfg.start_char else words
-
-    for w in starts:
-        used = {w}
-        conj_used = set()
-        if cfg.exclude_conjugate:
-            conj_used.add(normalize_for_conjugate(w))
-        dfs([w], used, conj_used)
-
-    return routes
-
-# =========================
-# /search
-# =========================
-
-@app.route("/search", methods=["POST"])
-def search():
-    data = request.get_json(force=True)
-
-    start_word = data.get("start_word","")
-    start_char = data.get("start_char","")
-    must_char = data.get("must_char","")
-    end_char = data.get("end_char","")
-    end_word = data.get("end_word","")
-    all_start_char = data.get("all_start_char","")
-    all_end_char = data.get("all_end_char","")
-    valid_chars = data.get("valid_chars","")
-    exclude_chars = data.get("exclude_chars","")
-    ban_start_chars = data.get("ban_start_chars","")
-    target_total_len = data.get("target_total_len",None)
-    len_mode = data.get("len_mode","free")
-    sort_mode = data.get("sort_mode","kana")
-    use_shift = data.get("use_shift",False)
-    ks_abs = int(data.get("ks_abs",1))
-    shift_mode = data.get("shift_mode","abs")
-    pos_shift = int(data.get("pos_shift",0))
-    unify_small = data.get("unify_small",False)
-    allow_daku = data.get("allow_daku",False)
-    allow_handaku = data.get("allow_handaku",False)
-    auto_recovery = data.get("auto_recovery",False)
-    round_trip = data.get("round_trip",False)
-    char_limit_mode = data.get("char_limit_mode",False)
-    exclude_conjugate = data.get("exclude_conjugate",False)
-    anti_loop = data.get("anti_loop",False)
-    timeout = int(data.get("timeout",15))
-    timeout_enabled = data.get("timeout_enabled",True)
-    limit = int(data.get("limit",1500))
-    limit_enabled = data.get("limit_enabled",True)
-    display_mode = data.get("display_mode","normal")
-    realtime_counter = data.get("realtime_counter",False)
-
-    categories = data.get("categories",["country","capital"])
-    red_words = set(data.get("red_words",[]))
-    blue_words = set(data.get("blue_words",[]))
-
-    words = []
-    if "country" in categories: words.extend(COUNTRY)
-    if "capital" in categories: words.extend(CAPITAL)
-    if "custom" in categories: words.extend(CUSTOM)
-
-    def norm(s): return normalize_kana(s, unify_small, allow_daku, allow_handaku) if s else ""
-
-    words = [norm(w) for w in words]
-    start_word = norm(start_word)
-    end_word = norm(end_word)
-    start_char = norm(start_char)
-    end_char = norm(end_char)
-    all_start_char = norm(all_start_char)
-    all_end_char = norm(all_end_char)
-    valid_chars = norm(valid_chars)
-    exclude_chars = norm(exclude_chars)
-    ban_start_chars = norm(ban_start_chars)
-    must_rules = parse_must_chars(norm(must_char))
-
-    cfg = SearchConfig(
-        start_word=start_word,
-        start_char=start_char,
-        end_char=end_char,
-        end_word=end_word,
-        all_start_char=all_start_char,
-        all_end_char=all_end_char,
-        must_rules=must_rules,
-        target_total_len=target_total_len,
-        len_mode=len_mode,
-        use_shift=use_shift,
-        ks_abs=ks_abs,
-        shift_mode=shift_mode,
-        pos_shift=pos_shift,
-        unify_small=unify_small,
-        allow_daku=allow_daku,
-        allow_handaku=allow_handaku,
-        auto_recovery=auto_recovery,
-        round_trip=round_trip,
-        char_limit_mode=char_limit_mode,
-        exclude_conjugate=exclude_conjugate,
-        anti_loop=anti_loop,
-        timeout=timeout,
-        timeout_enabled=timeout_enabled,
-        limit=limit,
-        limit_enabled=limit_enabled,
-        display_mode=display_mode,
-        realtime_counter=realtime_counter,
-        valid_chars=valid_chars,
-        exclude_chars=exclude_chars,
-        ban_start_chars=ban_start_chars,
-        red_words=red_words,
-        blue_words=blue_words,
-    )
-
-    words = filter_words(words, cfg)
-    routes = dfs_search(words, cfg)
-
-    if sort_mode == "len_asc":
-        routes.sort(key=lambda r: len("".join(r)))
-    elif sort_mode == "len_desc":
-        routes.sort(key=lambda r: -len("".join(r)))
-    elif sort_mode == "random":
-        random.shuffle(routes)
-    else:
-        routes.sort(key=lambda r: r[0] if r else "")
-
-    if limit_enabled and len(routes) > limit:
-        routes = routes[:limit]
-
-    return jsonify({"routes": routes, "count": len(routes)})
-
-# =========================
-# /get_dictionary
-# =========================
-
-@app.route("/get_dictionary")
-def get_dictionary():
-    return jsonify({
-        "country": COUNTRY,
-        "capital": CAPITAL,
-        "custom": CUSTOM
-    })
-
-# =========================
-# root（index.html）
-# =========================
-
+# --- ルート ---
 @app.route("/")
 def index():
     return render_template("index.html")
 
+@app.route("/get_dictionary")
+def get_dictionary():
+    return jsonify(DICTIONARY_MASTER)
+
+# --- メイン探索 ---
+@app.route("/search", methods=["POST"])
+def search():
+    d = request.json
+
+    # --- 基本パラメータ ---
+    max_len = int(d.get("max_len", 5))
+    pos_shift = int(d.get("pos_shift", 0))
+    use_shift = d.get("use_shift", False)
+    ks_abs = int(d.get("ks_abs", 1))
+    shift_mode = d.get("shift_mode", "abs")
+
+    unify_small = d.get("unify_small", False)
+    allow_daku = d.get("allow_daku", False)
+    allow_handaku = d.get("allow_handaku", False)
+    unify_scope = d.get("unify_scope", "all")
+
+    conn_s = unify_small and unify_scope in ["all","conn"]
+    conn_d = allow_daku and unify_scope in ["all","conn"]
+    conn_h = allow_handaku and unify_scope in ["all","conn"]
+
+    filt_s = unify_small and unify_scope in ["all","filter"]
+    filt_d = allow_daku and unify_scope in ["all","filter"]
+    filt_h = allow_handaku and unify_scope in ["all","filter"]
+
+    len_mode = d.get("len_mode", "free")
+    sort_mode = d.get("sort_mode", "default")
+
+    target_total_len = d.get("target_total_len")
+    if target_total_len:
+        target_total_len = int(target_total_len)
+
+    # --- 入力 ---
+    start_word = to_katakana(d.get("start_word",""))
+    start_char = get_clean_char(to_katakana(d.get("start_char","")), "head", 0, filt_s, filt_d, filt_h)
+    end_char = get_clean_char(to_katakana(d.get("end_char","")), "head", 0, filt_s, filt_d, filt_h)
+
+    asc = [get_clean_char(c.strip(),"head",0,filt_s,filt_d,filt_h)
+           for c in re.split("[,、]", to_katakana(d.get("all_start_char",""))) if c.strip()]
+
+    aec = [get_clean_char(c.strip(),"head",0,filt_s,filt_d,filt_h)
+           for c in re.split("[,、]", to_katakana(d.get("all_end_char",""))) if c.strip()]
+
+    valid_chars = set(to_katakana(d.get("valid_chars","")).replace(",","").replace("、","")) or None
+
+    exclude_chars = [get_base_char(c.strip(),filt_s,filt_d,filt_h)
+                     for c in re.split("[,、]", to_katakana(d.get("exclude_chars",""))) if c.strip()]
+
+    ban_start_chars = [get_base_char(c.strip(),filt_s,filt_d,filt_h)
+                       for c in re.split("[,、]", to_katakana(d.get("ban_start_chars",""))) if c.strip()]
+
+    must_chars = [get_base_char(c.strip(),filt_s,filt_d,filt_h)
+                  for c in re.split("[,、]", to_katakana(d.get("must_char",""))) if c.strip()]
+
+    # --- 辞書 ---
+    raw_pool = []
+    for cat in d.get("categories",["country"]):
+        raw_pool.extend(DICTIONARY_MASTER.get(cat,[]))
+    raw_pool = list(set(raw_pool))
+
+    # --- 赤/青 ---
+    red_words = set(d.get("red_words",[]))
+    blue_words = set(d.get("blue_words",[]))
+
+    # --- フィルタ ---
+    temp_pool = []
+    for w in raw_pool:
+        if w in red_words: continue
+
+        w_k = to_katakana(w)
+        h = get_clean_char(w_k,"head",0,filt_s,filt_d,filt_h)
+        t = get_clean_char(w_k,"tail",0,filt_s,filt_d,filt_h)
+
+        if asc and h not in asc: continue
+        if aec and t not in aec: continue
+
+        if valid_chars:
+            if not all(get_base_char(c,filt_s,filt_d,filt_h) in valid_chars for c in w_k.replace("ー","")):
+                continue
+
+        norm_w = "".join(get_base_char(c,filt_s,filt_d,filt_h) for c in w_k)
+        if any(ex in norm_w for ex in exclude_chars): continue
+        if any(h == bs for bs in ban_start_chars): continue
+
+        temp_pool.append(w_k)
+
+    # --- 共役排除 ---
+    if d.get("exclude_conjugate"):
+        pair_map = defaultdict(list)
+        for w in temp_pool:
+            ch = get_clean_char(w,"head",0,conn_s,conn_d,conn_h)
+            ct = get_clean_char(w,"tail",0,conn_s,conn_d,conn_h)
+            pair_map[f"{ch}_{ct}"].append(w)
+        word_pool = [v[0] for v in pair_map.values()]
+    else:
+        word_pool = temp_pool
+
+    # --- インデックス ---
+    head_index = defaultdict(list)
+    tail_index = defaultdict(list)
+    for w in word_pool:
+        head_index[get_clean_char(w,"head",0,conn_s,conn_d,conn_h)].append(w)
+        tail_index[get_clean_char(w,"tail",0,conn_s,conn_d,conn_h)].append(w)
+
+    # --- 探索 ---
+    results = []
+    start_time = time.time()
+    timeout = 15
+
+    def solve(path, total_len):
+        if time.time()-start_time > timeout: return
+        if len(path) == max_len:
+            # 文字数構成
+            if len_mode=="same" and len({len(x) for x in path})>1: return
+            if len_mode=="diff" and len({len(x) for x in path})!=len(path): return
+
+            # 青単語
+            if not blue_words.issubset(set(path)): return
+
+            # 合計文字数
+            if target_total_len and total_len != target_total_len: return
+
+            # 終了文字
+            if end_char:
+                last_t = get_clean_char(path[-1],"tail",0,conn_s,conn_d,conn_h)
+                if last_t not in get_variants(end_char,allow_daku,allow_handaku,conn_s):
+                    return
+
+            # 必須文字
+            joined = "".join(path)
+            norm_join = "".join(get_base_char(c,filt_s,filt_d,filt_h) for c in joined)
+            for mc in must_chars:
+                if norm_join.count(mc) < 1: return
+
+            results.append(path.copy())
+            return
+
+        last = path[-1]
+        last_clean = last.replace("ー","")
+        is_odd = (len(path)%2 != 0)
+
+        offsets = [pos_shift]
+        if d.get("auto_recovery"):
+            offsets += list(range(pos_shift+1, len(last_clean)))
+
+        for off in offsets:
+            src = get_clean_char(last, ("tail" if not d.get("round_trip") or is_odd else "head"), off, conn_s,conn_d,conn_h)
+            if not src: continue
+
+            raw_targets = {src}
+            if use_shift:
+                if shift_mode=="abs":
+                    raw_targets = {shift_kana(src, ks_abs), shift_kana(src, -ks_abs)}
+                else:
+                    raw_targets = {shift_kana(src, ks_abs)}
+
+            targets = set()
+            for rt in raw_targets:
+                targets |= get_variants(rt, allow_daku, allow_handaku, conn_s)
+
+            for tc in targets:
+                cands = (tail_index if (d.get("round_trip") and is_odd) else head_index).get(tc, [])
+                for nxt in cands:
+                    if nxt in path: continue
+
+                    # 文字重複禁止
+                    if d.get("char_limit_mode"):
+                        used = "".join(path)
+                        used = "".join(get_base_char(c,filt_s,filt_d,filt_h) for c in used)
+                        nxt_norm = "".join(get_base_char(c,filt_s,filt_d,filt_h) for c in nxt)
+                        if not set(used).isdisjoint(set(nxt_norm)):
+                            continue
+
+                    solve(path+[nxt], total_len+len(nxt))
+
+    # --- 開始 ---
+    starts = [start_word] if start_word in word_pool else word_pool
+    for w in sorted(starts):
+        if start_char:
+            if get_clean_char(w,"head",0,filt_s,filt_d,filt_h) != start_char:
+                continue
+        solve([w], len(w))
+
+    # --- ソート ---
+    if sort_mode=="kana":
+        results.sort()
+    elif sort_mode=="len_asc":
+        results.sort(key=lambda x: len("".join(x)))
+    elif sort_mode=="len_desc":
+        results.sort(key=lambda x: -len("".join(x)))
+    elif sort_mode=="random":
+        random.shuffle(results)
+
+    return jsonify({"routes": results, "count": len(results)})
+
+# --- Render 用 ---
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
