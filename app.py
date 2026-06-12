@@ -124,7 +124,8 @@ def search():
     d = request.json or {}
 
     # --- 基本パラメータ ---
-    max_len = int(d.get("max_len", 5))  # 語数
+    max_len = int(d.get("max_len", 5))
+
     pos_shift = int(d.get("pos_shift", 0))
     use_shift = bool(d.get("use_shift", False))
     ks_abs = int(d.get("ks_abs", 1))
@@ -133,28 +134,29 @@ def search():
     unify_small = bool(d.get("unify_small", False))
     allow_daku = bool(d.get("allow_daku", False))
     allow_handaku = bool(d.get("allow_handaku", False))
-    unify_scope = d.get("unify_scope", "all")  # all / conn / filter
+    unify_scope = d.get("unify_scope", "all")
 
-    len_mode = d.get("len_mode", "free")  # free / same / diff
+    len_mode = d.get("len_mode", "free")
     sort_mode = d.get("sort_mode", "default")
 
-    # 合計文字数（ttl）
-    target_total_len = d.get("target_total_len") or d.get("ttl")
-    if target_total_len not in (None, "", 0, "0"):
+    # --- 合計文字数（ttl） ---
+    target_total_len = d.get("ttl")
+    if target_total_len not in (None, "", "0", 0):
         target_total_len = int(target_total_len)
     else:
         target_total_len = None
 
-    # タイムアウト / 件数制限
+    # --- タイムアウト / 件数制限 ---
     timeout_enabled = bool(d.get("timeout_enabled", False))
     timeout_sec = float(d.get("timeout_sec", 15.0))
-    limit_enabled = bool(d.get("limit_enabled", False))
-    limit = int(d.get("limit", 0)) if d.get("limit") not in (None, "", 0, "0") else 0
 
-    # 共役集約
+    limit_enabled = bool(d.get("limit_enabled", False))
+    limit = int(d.get("limit", 0)) if d.get("limit") not in (None, "", "0", 0) else 0
+
+    # --- 共役排除 ---
     exclude_conjugate = bool(d.get("exclude_conjugate", False))
 
-    # 統一スコープ
+    # --- 統一スコープ ---
     conn_s = unify_small and unify_scope in ["all", "conn"]
     conn_d = allow_daku and unify_scope in ["all", "conn"]
     conn_h = allow_handaku and unify_scope in ["all", "conn"]
@@ -199,8 +201,7 @@ def search():
         if c.strip()
     ]
 
-    # 必須文字（: / = 管理）
-    # 例: "ア,イ:2,ウ=1"
+    # --- 必須文字（: / =） ---
     must_specs = []
     mc_raw = to_katakana(d.get("must_char", ""))
     for token in re.split("[,、]", mc_raw):
@@ -214,7 +215,6 @@ def search():
             ch, n = token.split("=", 1)
             must_specs.append((get_base_char(ch.strip(), filt_s, filt_d, filt_h), "==", int(n)))
         else:
-            # 単純に「1回以上」
             must_specs.append((get_base_char(token, filt_s, filt_d, filt_h), ">=", 1))
 
     # --- 辞書プール ---
@@ -223,7 +223,6 @@ def search():
         raw_pool.extend(DICTIONARY_MASTER.get(cat, []))
     raw_pool = list(set(raw_pool))
 
-    # 赤/青
     red_words = set(d.get("red_words", []))
     blue_words = set(d.get("blue_words", []))
 
@@ -257,7 +256,7 @@ def search():
 
         temp_pool.append(w_k)
 
-    # --- 共役集約（exclude_conjugate） ---
+    # --- 共役排除 ---
     if exclude_conjugate:
         pair_map = defaultdict(list)
         for w in temp_pool:
@@ -279,6 +278,8 @@ def search():
     # --- 探索 ---
     results = []
     start_time = time.time()
+    timeout_flag = False
+    limit_flag = False
 
     def timed_out():
         if not timeout_enabled:
@@ -291,32 +292,37 @@ def search():
         return len(results) >= limit
 
     def solve(path, total_len):
-        if timed_out() or limit_reached():
+        nonlocal timeout_flag, limit_flag
+
+        if timeout_flag or limit_flag:
+            return
+
+        if timed_out():
+            timeout_flag = True
+            return
+
+        if limit_reached():
+            limit_flag = True
             return
 
         if len(path) == max_len:
-            # 文字数構成
             lens = {len(x) for x in path}
             if len_mode == "same" and len(lens) > 1:
                 return
             if len_mode == "diff" and len(lens) != len(path):
                 return
 
-            # 青単語必須
             if not blue_words.issubset(set(path)):
                 return
 
-            # 合計文字数
             if target_total_len is not None and total_len != target_total_len:
                 return
 
-            # 終了文字
             if end_char:
                 last_t = get_clean_char(path[-1], "tail", 0, conn_s, conn_d, conn_h)
                 if last_t not in get_variants(end_char, allow_daku, allow_handaku, conn_s):
                     return
 
-            # 必須文字（: / =）
             joined = "".join(path)
             norm_join = "".join(get_base_char(c, filt_s, filt_d, filt_h) for c in joined)
             for ch, op, n in must_specs:
@@ -338,7 +344,7 @@ def search():
             offsets += list(range(pos_shift + 1, len(last_clean)))
 
         for off in offsets:
-            if timed_out() or limit_reached():
+            if timeout_flag or limit_flag:
                 return
 
             pos = "tail"
@@ -376,7 +382,7 @@ def search():
                             continue
 
                     solve(path + [nxt], total_len + len(nxt))
-                    if timed_out() or limit_reached():
+                    if timeout_flag or limit_flag:
                         return
 
     # --- 開始語 ---
@@ -390,7 +396,7 @@ def search():
             if get_clean_char(w, "head", 0, filt_s, filt_d, filt_h) != start_char:
                 continue
         solve([w], len(w))
-        if timed_out() or limit_reached():
+        if timeout_flag or limit_flag:
             break
 
     # --- ソート ---
@@ -406,8 +412,8 @@ def search():
     return jsonify({
         "routes": results,
         "count": len(results),
-        "timeout": timed_out(),
-        "limited": limit_reached()
+        "timeout": timeout_flag,
+        "limited": limit_flag
     })
 
 
