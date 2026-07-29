@@ -155,16 +155,17 @@ def search():
     else:
         word_pool = temp_pool
 
-    # --- 接続インデックス ---
-    head_index = defaultdict(list)
-    tail_index = defaultdict(list)
+# --- 接続インデックス ---
+head_index = defaultdict(list)
+tail_index = defaultdict(list)
 
-    for w in word_pool:
-        h = get_clean_char(w, "head", 0, False, allow_daku, allow_handaku)
-        t = get_clean_char(w, "tail", 0, False, allow_daku, allow_handaku)
-        head_index[h].append(w)
-        tail_index[t].append(w)
+for w in word_pool:
+    h = get_clean_char(w, "head", 0, not big_small, allow_daku, allow_handaku)
+    t = get_clean_char(w, "tail", 0, not big_small, allow_daku, allow_handaku)
+    head_index[h].append(w)
+    tail_index[t].append(w)
 
+    
     # --- 探索 ---
     results = []
 
