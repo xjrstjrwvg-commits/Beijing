@@ -103,16 +103,21 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-x-4 gap-y-3 text-[11px] font-bold border-t border-slate-200 dark:border-slate-700 pt-4">
-                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="allow_daku" class="w-4 h-4"> 濁点OK</label>
-                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="allow_handaku" class="w-4 h-4"> 半濁点OK</label>
-                        <label class="flex items-center gap-2 cursor-pointer text-indigo-600"><input type="checkbox" id="auto_recovery" class="w-4 h-4"> 遡り接続</label>
-                        <label class="flex items-center gap-2 cursor-pointer text-blue-600"><input type="checkbox" id="rt" class="w-4 h-4"> 牛耕</label>
-                        <label class="flex items-center gap-2 cursor-pointer text-rose-600"><input type="checkbox" id="char_limit_mode" class="w-4 h-4"> 重複禁止</label>
-                        <label class="flex items-center gap-2 cursor-pointer text-rose-500"><input type="checkbox" id="exclude_conjugate" class="w-4 h-4"> 共役排除</label>
-                    </div>
-                </div>
-            </details>
+<div class="grid grid-cols-2 gap-x-4 gap-y-3 text-[11px] font-bold border-t border-slate-200 dark:border-slate-700 pt-4">
+    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="allow_daku" class="w-4 h-4"> 濁点OK</label>
+    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="allow_handaku" class="w-4 h-4"> 半濁点OK</label>
+    <label class="flex items-center gap-2 cursor-pointer text-indigo-600"><input type="checkbox" id="auto_recovery" class="w-4 h-4"> 遡り接続</label>
+    <label class="flex items-center gap-2 cursor-pointer text-blue-600"><input type="checkbox" id="rt" class="w-4 h-4"> 牛耕</label>
+    <label class="flex items-center gap-2 cursor-pointer text-rose-600"><input type="checkbox" id="char_limit_mode" class="w-4 h-4"> 重複禁止</label>
+    <label class="flex items-center gap-2 cursor-pointer text-rose-500"><input type="checkbox" id="exclude_conjugate" class="w-4 h-4"> 共役排除</label>
+
+    <!-- ★★★ ここに追加 ★★★ -->
+    <label class="flex items-center gap-2 cursor-pointer text-orange-600">
+        <input type="checkbox" id="big_small_mode" class="w-4 h-4">
+        大≠小（接続のみ）
+    </label>
+</div>
+
 
             <!-- ↓ ここから下は「詳細設定より下」そのまま残してある部分 ↓ -->
 
