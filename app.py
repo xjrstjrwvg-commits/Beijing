@@ -84,7 +84,8 @@ def search():
     s_mode = d.get("shift_mode", "abs")
 
     allow_daku = d.get("allow_daku", False)
-    allow_handaku = d.get("allow_handaku", False)
+allow_handaku = d.get("allow_handaku", False)
+big_small = d.get("big_small_mode", False)
 
     raw_valid = to_katakana(d.get("valid_chars", ""))
     valid_chars = set(raw_valid.replace("、","").replace(",","")) if raw_valid else None
@@ -119,41 +120,44 @@ def search():
         raw_pool.extend(DICTIONARY_MASTER.get(cat, []))
     raw_pool = list(set(raw_pool))
 
-    # --- 一次フィルタ ---
-    temp_pool = []
-    for w in raw_pool:
-        if w in red_words: continue
+# --- 一次フィルタ ---
+temp_pool = []
+for w in raw_pool:
+    if w in red_words: continue
 
-        if valid_chars and not all(get_base_char(c, False, allow_daku, allow_handaku) in valid_chars
-                                   for c in w.replace("ー","")):
-            continue
+    if valid_chars and not all(get_base_char(c, not big_small, allow_daku, allow_handaku) in valid_chars
+                               for c in w.replace("ー","")):
+        continue
 
+    h = get_clean_char(w, "head", 0, not big_small, allow_daku, allow_handaku)
+    t = get_clean_char(w, "tail", 0, not big_small, allow_daku, allow_handaku)
+
+    if asc and h not in asc: continue
+    if aec and t not in aec: continue
+
+    norm_w = "".join([get_base_char(c, not big_small, allow_daku, allow_handaku) for c in w])
+    if any(ex in norm_w for ex in ex_list): continue
+
+    if h in bs_list: continue
+
+    temp_pool.append(w)
+
+# --- 共役排除 ---
+word_pool = []
+if d.get("exclude_conjugate", False):
+    mp = defaultdict(list)
+    for w in temp_pool:
+        # ★ 共役排除は「大＝小」で判定するため False 固定
         h = get_clean_char(w, "head", 0, False, allow_daku, allow_handaku)
         t = get_clean_char(w, "tail", 0, False, allow_daku, allow_handaku)
+        mp[f"{h}_{t}"].append(w)
 
-        if asc and h not in asc: continue
-        if aec and t not in aec: continue
+    for k, v in mp.items():
+        if len(v) == 1:
+            word_pool.append(v[0])
+else:
+    word_pool = temp_pool
 
-        norm_w = "".join(get_base_char(c, False, allow_daku, allow_handaku) for c in w)
-        if any(ex in norm_w for ex in ex_list): continue
-
-        if h in bs_list: continue
-
-        temp_pool.append(w)
-
-    # --- 共役排除 ---
-    word_pool = []
-    if d.get("exclude_conjugate", False):
-        mp = defaultdict(list)
-        for w in temp_pool:
-            h = get_clean_char(w, "head", 0, False, allow_daku, allow_handaku)
-            t = get_clean_char(w, "tail", 0, False, allow_daku, allow_handaku)
-            mp[f"{h}_{t}"].append(w)
-        for k,v in mp.items():
-            if len(v) == 1:
-                word_pool.append(v[0])
-    else:
-        word_pool = temp_pool
 
     # --- 接続インデックス ---
     head_index = defaultdict(list)
