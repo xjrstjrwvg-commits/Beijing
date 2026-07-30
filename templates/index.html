@@ -224,66 +224,95 @@
             });
         }
 
-        function saveSettings() {
-            const sm = document.querySelector('input[name="shift_mode"]:checked');
-            localStorage.ultraSettings = JSON.stringify({
-                sw: document.getElementById('sw').value,
-                sc: document.getElementById('sc').value,
-                asc: document.getElementById('asc').value,
-                mc: document.getElementById('mc').value,
-                ec: document.getElementById('ec').value,
-                aec: document.getElementById('aec').value,
-                exc: document.getElementById('exc').value,
-                bsc: document.getElementById('bsc').value,
-                ml: document.getElementById('ml').value,
-                ks_abs: document.getElementById('ks_abs').value,
-                valid_chars: document.getElementById('valid_chars').value,
-                use_shift: document.getElementById('use_shift').checked,
-                exclude_conjugate: document.getElementById('exclude_conjugate').checked,
-                allow_daku: document.getElementById('allow_daku').checked,
-                allow_handaku: document.getElementById('allow_handaku').checked,
-                auto_recovery: document.getElementById('auto_recovery').checked,
-                char_limit_mode: document.getElementById('char_limit_mode').checked,
-                rt: document.getElementById('rt').checked,
-                copy_limit: document.getElementById('copy_limit').value,
-                dark_mode: document.documentElement.classList.contains('dark'),
-                wordStates: wordStates,
-                shift_mode: sm ? sm.value : 'abs'
-            });
-        }
+function saveSettings() {
+    const sm = document.querySelector('input[name="shift_mode"]:checked');
+    localStorage.ultraSettings = JSON.stringify({
+        sw: document.getElementById('sw').value,
+        sc: document.getElementById('sc').value,
+        asc: document.getElementById('asc').value,
+        mc: document.getElementById('mc').value,
+        ec: document.getElementById('ec').value,
+        aec: document.getElementById('aec').value,
+        exc: document.getElementById('exc').value,
+        bsc: document.getElementById('bsc').value,
+        ml: document.getElementById('ml').value,
+        ks_abs: document.getElementById('ks_abs').value,
+        valid_chars: document.getElementById('valid_chars').value,
+        use_shift: document.getElementById('use_shift').checked,
+        exclude_conjugate: document.getElementById('exclude_conjugate').checked,
+        allow_daku: document.getElementById('allow_daku').checked,
+        allow_handaku: document.getElementById('allow_handaku').checked,
+        auto_recovery: document.getElementById('auto_recovery').checked,
+        char_limit_mode: document.getElementById('char_limit_mode').checked,
+        rt: document.getElementById('rt').checked,
+        copy_limit: document.getElementById('copy_limit').value,
+        dark_mode: document.documentElement.classList.contains('dark'),
+        wordStates: wordStates,
+        shift_mode: sm ? sm.value : 'abs',
 
-        function resetSettings() { localStorage.removeItem('ultraSettings'); location.reload(); }
-        function adjustVal(id, delta) { const el = document.getElementById(id); el.value = Math.max(0, parseInt(el.value || 0) + delta); saveSettings(); }
+        // ★★★ 追加：大≠小（接続のみ） ★★★
+        big_small_mode: document.getElementById('big_small_mode').checked
+    });
+}
 
-        async function run() {
-            const btn = document.getElementById('btn'); btn.innerText = "EXPLORING..."; btn.disabled = true;
-            const body = {
-                start_word: document.getElementById('sw').value,
-                start_char: document.getElementById('sc').value,
-                all_start_char: document.getElementById('asc').value,
-                must_char: document.getElementById('mc').value,
-                end_char: document.getElementById('ec').value,
-                all_end_char: document.getElementById('aec').value,
-                exclude_chars: document.getElementById('exc').value,
-                ban_start_chars: document.getElementById('bsc').value,
-                valid_chars: document.getElementById('valid_chars').value,
-                max_len: document.getElementById('ml').value,
-                use_shift: document.getElementById('use_shift').checked,
-                ks_abs: parseInt(document.getElementById('ks_abs').value),
-                shift_mode: document.querySelector('input[name="shift_mode"]:checked').value,
-                allow_daku: document.getElementById('allow_daku').checked,
-                allow_handaku: document.getElementById('allow_handaku').checked,
-                auto_recovery: document.getElementById('auto_recovery').checked,
-                char_limit_mode: document.getElementById('char_limit_mode').checked,
-                round_trip: document.getElementById('rt').checked,
-                exclude_conjugate: document.getElementById('exclude_conjugate').checked,
-                categories: Array.from(document.querySelectorAll('input[name="cat"]:checked')).map(c => c.value),
-                red_words: Object.keys(wordStates).filter(k => wordStates[k] === 'red'),
-                blue_words: Object.keys(wordStates).filter(k => wordStates[k] === 'blue')
-            };
-            const r = await fetch('/search', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
-            const d = await r.json(); currentRoutes = d.routes || []; btn.innerText = "Explore"; btn.disabled = false; display();
-        }
+function resetSettings() { 
+    localStorage.removeItem('ultraSettings'); 
+    location.reload(); 
+}
+
+function adjustVal(id, delta) { 
+    const el = document.getElementById(id); 
+    el.value = Math.max(0, parseInt(el.value || 0) + delta); 
+    saveSettings(); 
+}
+
+async function run() {
+    const btn = document.getElementById('btn'); 
+    btn.innerText = "EXPLORING..."; 
+    btn.disabled = true;
+
+    const body = {
+        start_word: document.getElementById('sw').value,
+        start_char: document.getElementById('sc').value,
+        all_start_char: document.getElementById('asc').value,
+        must_char: document.getElementById('mc').value,
+        end_char: document.getElementById('ec').value,
+        all_end_char: document.getElementById('aec').value,
+        exclude_chars: document.getElementById('exc').value,
+        ban_start_chars: document.getElementById('bsc').value,
+        valid_chars: document.getElementById('valid_chars').value,
+        max_len: document.getElementById('ml').value,
+        use_shift: document.getElementById('use_shift').checked,
+        ks_abs: parseInt(document.getElementById('ks_abs').value),
+        shift_mode: document.querySelector('input[name="shift_mode"]:checked').value,
+        allow_daku: document.getElementById('allow_daku').checked,
+        allow_handaku: document.getElementById('allow_handaku').checked,
+        auto_recovery: document.getElementById('auto_recovery').checked,
+        char_limit_mode: document.getElementById('char_limit_mode').checked,
+        round_trip: document.getElementById('rt').checked,
+        exclude_conjugate: document.getElementById('exclude_conjugate').checked,
+
+        // ★★★ 追加：大≠小（接続のみ） ★★★
+        big_small_mode: document.getElementById('big_small_mode').checked,
+
+        categories: Array.from(document.querySelectorAll('input[name="cat"]:checked')).map(c => c.value),
+        red_words: Object.keys(wordStates).filter(k => wordStates[k] === 'red'),
+        blue_words: Object.keys(wordStates).filter(k => wordStates[k] === 'blue')
+    };
+
+    const r = await fetch('/search', { 
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'}, 
+        body: JSON.stringify(body) 
+    });
+
+    const d = await r.json(); 
+    currentRoutes = d.routes || []; 
+    btn.innerText = "Explore"; 
+    btn.disabled = false; 
+    display();
+}
+
 
         function display() {
             document.getElementById('res').innerHTML = currentRoutes.map((rt, i) => `
