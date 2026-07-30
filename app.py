@@ -1,4 +1,4 @@
-import os, time, sys, re, random
+import os, sys, re
 from flask import Flask, render_template, request, jsonify
 from collections import defaultdict
 
@@ -10,40 +10,57 @@ except ImportError:
 sys.setrecursionlimit(10000)
 app = Flask(__name__)
 
+# --- 定数 ---
 KANA_LIST = (
     "アイウエオ" "カキクケコ" "ガギグゲゴ" "サシスセソ" "ザジズゼゾ"
     "タチツテト" "ダヂヅデド" "ナニヌネノ" "ハヒフヘホ" "バビブベボ"
     "パピプペポ" "マミムメモ" "ヤユヨ" "ラリルレロ" "ワン"
 )
+
 SMALL_TO_LARGE = {"ァ":"ア","ィ":"イ","ゥ":"ウ","ェ":"エ","ォ":"オ",
                   "ッ":"ツ","ャ":"ヤ","ュ":"ユ","ョ":"ヨ","ヮ":"ワ"}
+
 DAKU_MAP = {"カ":"ガ","キ":"ギ","ク":"グ","ケ":"ゲ","コ":"ゴ",
             "サ":"ザ","シ":"ジ","ス":"ズ","セ":"ゼ","ソ":"ゾ",
             "タ":"ダ","チ":"ヂ","ツ":"ヅ","テ":"デ","ト":"ド",
             "ハ":"バ","ヒ":"ビ","フ":"ブ","ヘ":"ベ","ホ":"ボ"}
+
 HANDAKU_MAP = {"ハ":"パ","ヒ":"ピ","フ":"プ","ヘ":"ペ","ホ":"ポ"}
 
 REV_DAKU = {v:k for k,v in DAKU_MAP.items()}
 REV_HANDAKU = {v:k for k,v in HANDAKU_MAP.items()}
 
+# --- ユーティリティ ---
 def to_katakana(text):
     if not text: return ""
     return "".join(chr(ord(c)+96) if 0x3041 <= ord(c) <= 0x3096 else c for c in text)
+
+# ★ 長音「ー」バグ修正済み版
+def get_clean_char(w, pos="head", offset=0, unify_s=False, unify_d=False, unify_h=False):
+    if not w: return ""
+    t = w
+
+    try:
+        if pos == "head":
+            i = 0
+            while i < len(t) and t[i] == "ー":
+                i += 1
+            return get_base_char(t[i + offset], unify_s, unify_d, unify_h)
+
+        else:  # tail
+            i = len(t) - 1
+            while i >= 0 and t[i] == "ー":
+                i -= 1
+            return get_base_char(t[i - offset], unify_s, unify_d, unify_h)
+
+    except:
+        return ""
 
 def get_base_char(c, unify_small=False, unify_d=False, unify_h=False):
     res = SMALL_TO_LARGE.get(c, c) if unify_small else c
     if unify_d: res = REV_DAKU.get(res, res)
     if unify_h: res = REV_HANDAKU.get(res, res)
     return res
-
-def get_clean_char(w, pos="head", offset=0, unify_s=False, unify_d=False, unify_h=False):
-    t = w.replace("ー", "")
-    if not t: return ""
-    try:
-        idx = offset if pos == "head" else -(1+offset)
-        return get_base_char(t[idx], unify_s, unify_d, unify_h)
-    except:
-        return ""
 
 def shift_kana(c, n):
     if c not in KANA_LIST: return c
@@ -74,15 +91,14 @@ def get_dictionary():
 def search():
     d = request.json
 
+    # --- パラメータ ---
     max_len = int(d.get("max_len", 5))
-
     use_shift = d.get("use_shift", False)
     ks_val = int(d.get("ks_abs", 1))
     s_mode = d.get("shift_mode", "abs")
 
     allow_daku = d.get("allow_daku", False)
     allow_handaku = d.get("allow_handaku", False)
-
     big_small = d.get("big_small_mode", False)
 
     # --- 経由文字 ---
@@ -92,9 +108,6 @@ def search():
         if c.strip()
     ]
     via_mode = d.get("via_mode", "both")
-
-    # --- ★ 文字数構成モード（追加） ---
-    len_mode = d.get("len_mode", "free")
 
     raw_valid = to_katakana(d.get("valid_chars", ""))
     valid_chars = set(raw_valid.replace("、","").replace(",","")) if raw_valid else None
@@ -123,11 +136,13 @@ def search():
     end_char = get_clean_char(to_katakana(d.get("end_char","")),
                               "head", 0, False, allow_daku, allow_handaku)
 
+    # --- 辞書 ---
     raw_pool = []
     for cat in d.get("categories", ["country"]):
         raw_pool.extend(DICTIONARY_MASTER.get(cat, []))
     raw_pool = list(set(raw_pool))
 
+    # --- 一次フィルタ ---
     temp_pool = []
     for w in raw_pool:
         if w in red_words: continue
@@ -149,19 +164,18 @@ def search():
 
         temp_pool.append(w)
 
-    word_pool = []
+    # --- 共役排除 ---
     if d.get("exclude_conjugate", False):
         mp = defaultdict(list)
         for w in temp_pool:
             h = get_clean_char(w, "head", 0, False, allow_daku, allow_handaku)
             t = get_clean_char(w, "tail", 0, False, allow_daku, allow_handaku)
             mp[f"{h}_{t}"].append(w)
-        for k,v in mp.items():
-            if len(v) == 1:
-                word_pool.append(v[0])
+        word_pool = [v[0] for v in mp.values() if len(v) == 1]
     else:
         word_pool = temp_pool
 
+    # --- 接続インデックス ---
     head_index = defaultdict(list)
     tail_index = defaultdict(list)
 
@@ -171,52 +185,35 @@ def search():
         head_index[h].append(w)
         tail_index[t].append(w)
 
+    # --- 探索 ---
     results = []
 
     def solve(path, via_index):
-
+        # --- 経由判定 ---
         if via_index < len(via_chars):
             vc = via_chars[via_index]
             head = get_clean_char(path[-1], "head", 0, False, allow_daku, allow_handaku)
             tail = get_clean_char(path[-1], "tail", 0, False, allow_daku, allow_handaku)
 
-            ok = (
-                (via_mode == "head" and head == vc) or
-                (via_mode == "tail" and tail == vc) or
-                (via_mode == "both" and (head == vc or tail == vc))
-            )
+            ok = False
+            if via_mode == "head":
+                ok = (head == vc)
+            elif via_mode == "tail":
+                ok = (tail == vc)
+            else:
+                ok = (head == vc or tail == vc)
 
             if ok:
                 via_index += 1
 
+        # --- 終端判定 ---
         if len(path) == max_len:
             if via_index < len(via_chars):
                 return
 
-            # --- ★ 文字数構成チェック（追加） ---
-            if len_mode != "free":
-                lens = [len(w.replace("ー","")) for w in path]
-
-                if len_mode == "all_diff" and len(set(lens)) != len(lens):
-                    return
-
-                if len_mode == "all_same" and len(set(lens)) != 1:
-                    return
-
-                if len_mode == "inc_eq" and not all(lens[i] <= lens[i+1] for i in range(len(lens)-1)):
-                    return
-
-                if len_mode == "inc_strict" and not all(lens[i] < lens[i+1] for i in range(len(lens)-1)):
-                    return
-
-                if len_mode == "dec_eq" and not all(lens[i] >= lens[i+1] for i in range(len(lens)-1)):
-                    return
-
-                if len_mode == "dec_strict" and not all(lens[i] > lens[i+1] for i in range(len(lens)-1)):
-                    return
-
-            for b in blue_words:
-                if b not in path:
+            # ★ 青語は「1つでも含まれていればOK」
+            if blue_words:
+                if not any(b in path for b in blue_words):
                     return
 
             joined = "".join(path)
@@ -235,7 +232,6 @@ def search():
             return
 
         last = path[-1]
-
         src = get_clean_char(last, "tail", 0, not big_small, allow_daku, allow_handaku)
         if not src:
             return
@@ -247,10 +243,8 @@ def search():
                     shift_kana(src, ks_val),
                     shift_kana(src, -ks_val)
                 }
-            elif s_mode == "normal":
+            else:
                 raw_targets = {shift_kana(src, ks_val)}
-            elif s_mode == "minus":
-                raw_targets = {shift_kana(src, -ks_val)}
 
         targets = set()
         for rt in raw_targets:
@@ -263,7 +257,13 @@ def search():
                     continue
                 solve(path + [nxt], via_index)
 
-    starts = [start_word] if start_word in word_pool else word_pool
+    # --- 開始語 ---
+    if start_word:
+        if start_word not in word_pool:
+            return jsonify({"routes": [], "count": 0})
+        starts = [start_word]
+    else:
+        starts = word_pool
 
     for w in sorted(starts):
         if start_char:
