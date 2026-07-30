@@ -86,6 +86,8 @@ def search():
     allow_daku = d.get("allow_daku", False)
     allow_handaku = d.get("allow_handaku", False)
 
+    big_small = d.get("big_small_mode", False)
+
     raw_valid = to_katakana(d.get("valid_chars", ""))
     valid_chars = set(raw_valid.replace("、","").replace(",","")) if raw_valid else None
 
@@ -119,115 +121,115 @@ def search():
         raw_pool.extend(DICTIONARY_MASTER.get(cat, []))
     raw_pool = list(set(raw_pool))
 
-# --- 一次フィルタ ---
-temp_pool = []
-for w in raw_pool:
-    if w in red_words: continue
+    # --- 一次フィルタ ---
+    temp_pool = []
+    for w in raw_pool:
+        if w in red_words: continue
 
-    if valid_chars and not all(get_base_char(c, False, allow_daku, allow_handaku) in valid_chars
-                               for c in w.replace("ー","")):
-        continue
+        if valid_chars and not all(get_base_char(c, False, allow_daku, allow_handaku) in valid_chars
+                                   for c in w.replace("ー","")):
+            continue
 
-    h = get_clean_char(w, "head", 0, False, allow_daku, allow_handaku)
-    t = get_clean_char(w, "tail", 0, False, allow_daku, allow_handaku)
-
-    if asc and h not in asc: continue
-    if aec and t not in aec: continue
-
-    norm_w = "".join(get_base_char(c, False, allow_daku, allow_handaku) for c in w)
-    if any(ex in norm_w for ex in ex_list): continue
-
-    if h in bs_list: continue
-
-    temp_pool.append(w)
-
-# --- 共役排除 ---
-word_pool = []
-if d.get("exclude_conjugate", False):
-    mp = defaultdict(list)
-    for w in temp_pool:
         h = get_clean_char(w, "head", 0, False, allow_daku, allow_handaku)
         t = get_clean_char(w, "tail", 0, False, allow_daku, allow_handaku)
-        mp[f"{h}_{t}"].append(w)
-    for k,v in mp.items():
-        if len(v) == 1:
-            word_pool.append(v[0])
-else:
-    word_pool = temp_pool
 
-# --- 接続インデックス ---
-head_index = defaultdict(list)
-tail_index = defaultdict(list)
+        if asc and h not in asc: continue
+        if aec and t not in aec: continue
 
-for w in word_pool:
-    h = get_clean_char(w, "head", 0, not big_small, allow_daku, allow_handaku)
-    t = get_clean_char(w, "tail", 0, not big_small, allow_daku, allow_handaku)
-    head_index[h].append(w)
-    tail_index[t].append(w)
-    
-# --- 探索 ---
-results = []
+        norm_w = "".join(get_base_char(c, False, allow_daku, allow_handaku) for c in w)
+        if any(ex in norm_w for ex in ex_list): continue
 
-def solve(path):
-    if len(path) == max_len:
+        if h in bs_list: continue
 
-        for b in blue_words:
-            if b not in path:
-                return
+        temp_pool.append(w)
 
-        joined = "".join(path)
-        norm = "".join(get_base_char(c, False, allow_daku, allow_handaku) for c in joined)
+    # --- 共役排除 ---
+    word_pool = []
+    if d.get("exclude_conjugate", False):
+        mp = defaultdict(list)
+        for w in temp_pool:
+            h = get_clean_char(w, "head", 0, False, allow_daku, allow_handaku)
+            t = get_clean_char(w, "tail", 0, False, allow_daku, allow_handaku)
+            mp[f"{h}_{t}"].append(w)
+        for k,v in mp.items():
+            if len(v) == 1:
+                word_pool.append(v[0])
+    else:
+        word_pool = temp_pool
 
-        for mc in must_chars:
-            if mc not in norm:
-                return
+    # --- 接続インデックス（★修正済み★） ---
+    head_index = defaultdict(list)
+    tail_index = defaultdict(list)
 
-        if end_char:
-            last_tail = get_clean_char(path[-1], "tail", 0, False, allow_daku, allow_handaku)
-            if last_tail not in get_variants(end_char, allow_daku, allow_handaku, False):
-                return
+    for w in word_pool:
+        h = get_clean_char(w, "head", 0, not big_small, allow_daku, allow_handaku)
+        t = get_clean_char(w, "tail", 0, not big_small, allow_daku, allow_handaku)
+        head_index[h].append(w)
+        tail_index[t].append(w)
 
-        results.append(list(path))
-        return
+    # --- 探索 ---
+    results = []
 
-    last = path[-1]
+    def solve(path):
+        if len(path) == max_len:
 
-    # ★★★ 修正箇所：接続判定のみ大≠小を反映 ★★★
-    src = get_clean_char(last, "tail", 0, not big_small, allow_daku, allow_handaku)
+            for b in blue_words:
+                if b not in path:
+                    return
 
-    if not src:
-        return
+            joined = "".join(path)
+            norm = "".join(get_base_char(c, False, allow_daku, allow_handaku) for c in joined)
 
-    raw_targets = {src}
-    if use_shift:
-        if s_mode == "abs":
-            raw_targets = {
-                shift_kana(src, ks_val),
-                shift_kana(src, -ks_val)
-            }
-        else:
-            raw_targets = {shift_kana(src, ks_val)}
+            for mc in must_chars:
+                if mc not in norm:
+                    return
 
-    targets = set()
-    for rt in raw_targets:
-        targets.update(get_variants(rt, allow_daku, allow_handaku, False))
+            if end_char:
+                last_tail = get_clean_char(path[-1], "tail", 0, False, allow_daku, allow_handaku)
+                if last_tail not in get_variants(end_char, allow_daku, allow_handaku, False):
+                    return
 
-    for tc in targets:
-        cands = head_index.get(tc, [])
-        for nxt in cands:
-            if nxt in path:
+            results.append(list(path))
+            return
+
+        last = path[-1]
+
+        # --- ★修正箇所：接続判定のみ大≠小を反映 ---
+        src = get_clean_char(last, "tail", 0, not big_small, allow_daku, allow_handaku)
+
+        if not src:
+            return
+
+        raw_targets = {src}
+        if use_shift:
+            if s_mode == "abs":
+                raw_targets = {
+                    shift_kana(src, ks_val),
+                    shift_kana(src, -ks_val)
+                }
+            else:
+                raw_targets = {shift_kana(src, ks_val)}
+
+        targets = set()
+        for rt in raw_targets:
+            targets.update(get_variants(rt, allow_daku, allow_handaku, False))
+
+        for tc in targets:
+            cands = head_index.get(tc, [])
+            for nxt in cands:
+                if nxt in path:
+                    continue
+                solve(path + [nxt])
+
+    starts = [start_word] if start_word in word_pool else word_pool
+
+    for w in sorted(starts):
+        if start_char:
+            if get_clean_char(w, "head", 0, False, allow_daku, allow_handaku) != start_char:
                 continue
-            solve(path + [nxt])
+        solve([w])
 
-starts = [start_word] if start_word in word_pool else word_pool
-
-for w in sorted(starts):
-    if start_char:
-        if get_clean_char(w, "head", 0, False, allow_daku, allow_handaku) != start_char:
-            continue
-    solve([w])
-
-return jsonify({"routes": results, "count": len(results)})
+    return jsonify({"routes": results, "count": len(results)})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
