@@ -10,7 +10,6 @@ except ImportError:
 sys.setrecursionlimit(10000)
 app = Flask(__name__)
 
-# --- 定数 ---
 KANA_LIST = (
     "アイウエオ" "カキクケコ" "ガギグゲゴ" "サシスセソ" "ザジズゼゾ"
     "タチツテト" "ダヂヅデド" "ナニヌネノ" "ハヒフヘホ" "バビブベボ"
@@ -27,7 +26,6 @@ HANDAKU_MAP = {"ハ":"パ","ヒ":"ピ","フ":"プ","ヘ":"ペ","ホ":"ポ"}
 REV_DAKU = {v:k for k,v in DAKU_MAP.items()}
 REV_HANDAKU = {v:k for k,v in HANDAKU_MAP.items()}
 
-# --- ユーティリティ ---
 def to_katakana(text):
     if not text: return ""
     return "".join(chr(ord(c)+96) if 0x3041 <= ord(c) <= 0x3096 else c for c in text)
@@ -76,17 +74,28 @@ def get_dictionary():
 def search():
     d = request.json
 
-    # --- 削除後の最小限パラメータ ---
     max_len = int(d.get("max_len", 5))
-
     use_shift = d.get("use_shift", False)
     ks_val = int(d.get("ks_abs", 1))
     s_mode = d.get("shift_mode", "abs")
 
     allow_daku = d.get("allow_daku", False)
     allow_handaku = d.get("allow_handaku", False)
-
     big_small = d.get("big_small_mode", False)
+
+    # --- 経由文字 ---
+    via_chars = [
+        get_base_char(c.strip(), False, allow_daku, allow_handaku)
+        for c in re.split("[、,]", to_katakana(d.get("via_chars",""))) if c.strip()
+    ]
+    via_mode = d.get("via_mode", "both")
+
+    # --- 群必須（最小差分追加） ---
+    group_required = [
+        to_katakana(w.strip()) for w in re.split("[、,]", d.get("group_required","")) if w.strip()
+    ]
+    group_mode = d.get("group_mode", "min1")
+    group_N = int(d.get("group_N", 1))
 
     raw_valid = to_katakana(d.get("valid_chars", ""))
     valid_chars = set(raw_valid.replace("、","").replace(",","")) if raw_valid else None
@@ -115,13 +124,11 @@ def search():
     end_char = get_clean_char(to_katakana(d.get("end_char","")),
                               "head", 0, False, allow_daku, allow_handaku)
 
-    # --- 辞書 ---
     raw_pool = []
     for cat in d.get("categories", ["country"]):
         raw_pool.extend(DICTIONARY_MASTER.get(cat, []))
     raw_pool = list(set(raw_pool))
 
-    # --- 一次フィルタ ---
     temp_pool = []
     for w in raw_pool:
         if w in red_words: continue
@@ -143,7 +150,6 @@ def search():
 
         temp_pool.append(w)
 
-    # --- 共役排除 ---
     word_pool = []
     if d.get("exclude_conjugate", False):
         mp = defaultdict(list)
@@ -157,7 +163,6 @@ def search():
     else:
         word_pool = temp_pool
 
-    # --- 接続インデックス（★修正済み★） ---
     head_index = defaultdict(list)
     tail_index = defaultdict(list)
 
@@ -167,11 +172,37 @@ def search():
         head_index[h].append(w)
         tail_index[t].append(w)
 
-    # --- 探索 ---
     results = []
 
-    def solve(path):
+    def solve(path, via_index):
+        # --- 経由文字 ---
+        if via_index < len(via_chars):
+            vc = via_chars[via_index]
+            head = get_clean_char(path[-1], "head", 0, False, allow_daku, allow_handaku)
+            tail = get_clean_char(path[-1], "tail", 0, False, allow_daku, allow_handaku)
+
+            ok = (
+                (via_mode == "head" and head == vc) or
+                (via_mode == "tail" and tail == vc) or
+                (via_mode == "both" and (head == vc or tail == vc))
+            )
+            if ok:
+                via_index += 1
+
         if len(path) == max_len:
+            if via_index < len(via_chars):
+                return
+
+            # --- 群必須（最小差分追加） ---
+            if group_required:
+                count = sum(1 for w in path if w in group_required)
+
+                if group_mode == "min1" and count < 1:
+                    return
+                if group_mode == "minN" and count < group_N:
+                    return
+                if group_mode == "eqN" and count != group_N:
+                    return
 
             for b in blue_words:
                 if b not in path:
@@ -193,22 +224,23 @@ def search():
             return
 
         last = path[-1]
-
-        # --- ★修正箇所：接続判定のみ大≠小を反映 ---
         src = get_clean_char(last, "tail", 0, not big_small, allow_daku, allow_handaku)
-
         if not src:
             return
 
         raw_targets = {src}
+
+        # --- ずらしモード（minus 追加） ---
         if use_shift:
             if s_mode == "abs":
                 raw_targets = {
                     shift_kana(src, ks_val),
                     shift_kana(src, -ks_val)
                 }
-            else:
-                raw_targets = {shift_kana(src, ks_val)}
+            elif s_mode == "normal":
+                raw_targets = { shift_kana(src, ks_val) }
+            elif s_mode == "minus":   # ★ 最小差分追加
+                raw_targets = { shift_kana(src, -ks_val) }
 
         targets = set()
         for rt in raw_targets:
@@ -219,7 +251,7 @@ def search():
             for nxt in cands:
                 if nxt in path:
                     continue
-                solve(path + [nxt])
+                solve(path + [nxt], via_index)
 
     starts = [start_word] if start_word in word_pool else word_pool
 
@@ -227,7 +259,7 @@ def search():
         if start_char:
             if get_clean_char(w, "head", 0, False, allow_daku, allow_handaku) != start_char:
                 continue
-        solve([w])
+        solve([w], 0)
 
     return jsonify({"routes": results, "count": len(results)})
 
