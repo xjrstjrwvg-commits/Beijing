@@ -10,7 +10,6 @@ except ImportError:
 sys.setrecursionlimit(10000)
 app = Flask(__name__)
 
-# --- 定数 ---
 KANA_LIST = (
     "アイウエオ" "カキクケコ" "ガギグゲゴ" "サシスセソ" "ザジズゼゾ"
     "タチツテト" "ダヂヅデド" "ナニヌネノ" "ハヒフヘホ" "バビブベボ"
@@ -27,7 +26,6 @@ HANDAKU_MAP = {"ハ":"パ","ヒ":"ピ","フ":"プ","ヘ":"ペ","ホ":"ポ"}
 REV_DAKU = {v:k for k,v in DAKU_MAP.items()}
 REV_HANDAKU = {v:k for k,v in HANDAKU_MAP.items()}
 
-# --- ユーティリティ ---
 def to_katakana(text):
     if not text: return ""
     return "".join(chr(ord(c)+96) if 0x3041 <= ord(c) <= 0x3096 else c for c in text)
@@ -76,7 +74,6 @@ def get_dictionary():
 def search():
     d = request.json
 
-    # --- 削除後の最小限パラメータ ---
     max_len = int(d.get("max_len", 5))
 
     use_shift = d.get("use_shift", False)
@@ -88,7 +85,7 @@ def search():
 
     big_small = d.get("big_small_mode", False)
 
-    # --- ★ 経由文字（最小差分追加） ---
+    # --- 経由文字 ---
     via_chars = [
         get_base_char(c.strip(), False, allow_daku, allow_handaku)
         for c in re.split("[、,]", to_katakana(d.get("via_chars", "")))
@@ -96,14 +93,8 @@ def search():
     ]
     via_mode = d.get("via_mode", "both")
 
-    # --- ★ 群必須（最小差分追加） ---
-    group_required = [
-        to_katakana(w.strip())
-        for w in re.split("[、,]", d.get("group_required", ""))
-        if w.strip()
-    ]
-    group_mode = d.get("group_mode", "min1")
-    group_N = int(d.get("group_N", 1))
+    # --- ★ 文字数構成モード（追加） ---
+    len_mode = d.get("len_mode", "free")
 
     raw_valid = to_katakana(d.get("valid_chars", ""))
     valid_chars = set(raw_valid.replace("、","").replace(",","")) if raw_valid else None
@@ -132,13 +123,11 @@ def search():
     end_char = get_clean_char(to_katakana(d.get("end_char","")),
                               "head", 0, False, allow_daku, allow_handaku)
 
-    # --- 辞書 ---
     raw_pool = []
     for cat in d.get("categories", ["country"]):
         raw_pool.extend(DICTIONARY_MASTER.get(cat, []))
     raw_pool = list(set(raw_pool))
 
-    # --- 一次フィルタ ---
     temp_pool = []
     for w in raw_pool:
         if w in red_words: continue
@@ -160,7 +149,6 @@ def search():
 
         temp_pool.append(w)
 
-    # --- 共役排除 ---
     word_pool = []
     if d.get("exclude_conjugate", False):
         mp = defaultdict(list)
@@ -174,7 +162,6 @@ def search():
     else:
         word_pool = temp_pool
 
-    # --- 接続インデックス ---
     head_index = defaultdict(list)
     tail_index = defaultdict(list)
 
@@ -184,13 +171,10 @@ def search():
         head_index[h].append(w)
         tail_index[t].append(w)
 
-    # --- 探索 ---
     results = []
 
-    # ★ solve に via_index を追加（最小差分）
     def solve(path, via_index):
 
-        # --- ★ 経由判定（最小差分追加） ---
         if via_index < len(via_chars):
             vc = via_chars[via_index]
             head = get_clean_char(path[-1], "head", 0, False, allow_daku, allow_handaku)
@@ -205,20 +189,30 @@ def search():
             if ok:
                 via_index += 1
 
-        # --- 経由未達成で終了したら NG ---
         if len(path) == max_len:
             if via_index < len(via_chars):
                 return
 
-            # --- ★ 群必須チェック（最小差分追加） ---
-            if group_required:
-                count = sum(1 for w in path if w in group_required)
+            # --- ★ 文字数構成チェック（追加） ---
+            if len_mode != "free":
+                lens = [len(w.replace("ー","")) for w in path]
 
-                if group_mode == "min1" and count < 1:
+                if len_mode == "all_diff" and len(set(lens)) != len(lens):
                     return
-                if group_mode == "minN" and count < group_N:
+
+                if len_mode == "all_same" and len(set(lens)) != 1:
                     return
-                if group_mode == "eqN" and count != group_N:
+
+                if len_mode == "inc_eq" and not all(lens[i] <= lens[i+1] for i in range(len(lens)-1)):
+                    return
+
+                if len_mode == "inc_strict" and not all(lens[i] < lens[i+1] for i in range(len(lens)-1)):
+                    return
+
+                if len_mode == "dec_eq" and not all(lens[i] >= lens[i+1] for i in range(len(lens)-1)):
+                    return
+
+                if len_mode == "dec_strict" and not all(lens[i] > lens[i+1] for i in range(len(lens)-1)):
                     return
 
             for b in blue_words:
@@ -255,7 +249,7 @@ def search():
                 }
             elif s_mode == "normal":
                 raw_targets = {shift_kana(src, ks_val)}
-            elif s_mode == "minus":   # ★ 最小差分追加
+            elif s_mode == "minus":
                 raw_targets = {shift_kana(src, -ks_val)}
 
         targets = set()
