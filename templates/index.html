@@ -27,8 +27,12 @@
         }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-3 pb-24" onchange="saveSettings()" oninput="saveSettings()">
+
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-3 pb-24"
+      onchange="saveSettings()" oninput="saveSettings()">
+
     <div class="max-w-md mx-auto space-y-3">
+
         <header class="flex justify-between items-center py-1">
             <div class="flex items-center gap-3">
                 <h1 class="text-xl font-black italic text-blue-600 uppercase tracking-tighter">Ultra Engine</h1>
@@ -41,7 +45,9 @@
         </header>
 
         <div class="glass rounded-[28px] p-5 space-y-4 shadow-2xl">
+
             <input id="sw" placeholder="開始単語" class="w-full">
+
             <div class="grid grid-cols-3 gap-2">
                 <input id="sc" placeholder="開始字" class="w-full">
                 <input id="mc" placeholder="必須文字" class="w-full">
@@ -54,8 +60,9 @@
                     <span class="text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest group-open:hidden">＋ 詳細設定を表示</span>
                     <span class="text-[11px] font-black text-rose-500 uppercase tracking-widest hidden group-open:block">－ 詳細設定を閉じる</span>
                 </summary>
-                
+
                 <div class="space-y-5 pt-2 pb-4 px-1">
+
                     <div class="grid grid-cols-2 gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
                         <div class="space-y-1">
                             <label class="text-[10px] font-bold text-blue-500 uppercase ml-1">全語開始字</label>
@@ -88,11 +95,25 @@
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">50音ずらし (物理位置連動)</label>
                             <input type="checkbox" id="use_shift" class="w-6 h-6 cursor-pointer accent-blue-600">
                         </div>
+
                         <div class="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 p-3 rounded-xl">
                             <div class="flex gap-4 font-bold text-[11px]">
-                                <label class="cursor-pointer flex items-center gap-2"><input type="radio" name="shift_mode" value="abs" checked class="w-4 h-4"> ±</label>
-                                <label class="cursor-pointer flex items-center gap-2"><input type="radio" name="shift_mode" value="normal" class="w-4 h-4"> 通常</label>
+
+                                <label class="cursor-pointer flex items-center gap-2">
+                                    <input type="radio" name="shift_mode" value="abs" checked class="w-4 h-4"> ±
+                                </label>
+
+                                <label class="cursor-pointer flex items-center gap-2">
+                                    <input type="radio" name="shift_mode" value="normal" class="w-4 h-4"> ＋
+                                </label>
+
+                                <!-- ★★★ 追加：ずらし「−」モード（最小差分） ★★★ -->
+                                <label class="cursor-pointer flex items-center gap-2">
+                                    <input type="radio" name="shift_mode" value="minus" class="w-4 h-4"> −
+                                </label>
+
                             </div>
+
                             <div class="flex items-center gap-3 ml-auto">
                                 <button type="button" onclick="adjustVal('ks_abs',-1)" class="step-btn">-</button>
                                 <input type="number" id="ks_abs" value="1" class="w-12 text-center bg-transparent border-none text-sm font-bold">
@@ -108,13 +129,28 @@
                         <label class="flex items-center gap-2 cursor-pointer text-blue-600"><input type="checkbox" id="rt" class="w-4 h-4"> 牛耕</label>
                         <label class="flex items-center gap-2 cursor-pointer text-rose-600"><input type="checkbox" id="char_limit_mode" class="w-4 h-4"> 重複禁止</label>
                         <label class="flex items-center gap-2 cursor-pointer text-rose-500"><input type="checkbox" id="exclude_conjugate" class="w-4 h-4"> 共役排除</label>
-
-                        <!-- ★★★ 追加：大≠小（接続のみ） ★★★ -->
-                        <label class="flex items-center gap-2 cursor-pointer text-orange-600">
-                            <input type="checkbox" id="big_small_mode" class="w-4 h-4">
-                            大≠小（接続のみ）
-                        </label>
                     </div>
+
+                    <!-- ★★★ 追加：群必須（最小差分） ★★★ -->
+                    <div class="space-y-2 border-t border-slate-200 dark:border-slate-700 pt-4">
+                        <label class="text-[10px] font-bold text-indigo-500 uppercase ml-1">群必須語</label>
+                        <input id="group_required" placeholder="アメリカ,イギリス,フランス" class="w-full">
+
+                        <div class="flex gap-4 text-[11px] font-bold pt-1">
+                            <label class="flex items-center gap-2">
+                                <input type="radio" name="group_mode" value="min1" checked class="w-4 h-4"> 1つ以上
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="radio" name="group_mode" value="minN" class="w-4 h-4"> N以上
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="radio" name="group_mode" value="eqN" class="w-4 h-4"> Nちょうど
+                            </label>
+                        </div>
+
+                        <input id="group_N" type="number" value="1" class="w-16 text-center bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">
+                    </div>
+
                 </div>
             </details>
             <!-- ↓ ここから下は「詳細設定より下」そのまま残してある部分 ↓ -->
@@ -183,11 +219,26 @@
         async function init() {
             if (localStorage.ultraSettings) {
                 const s = JSON.parse(localStorage.ultraSettings);
-                const fields = ['sw','sc','asc','mc','ec','aec','exc','bsc','ml','ks_abs','copy_limit','valid_chars'];
+                const fields = ['sw','sc','asc','mc','ec','aec','exc','bsc','ml','ks_abs','copy_limit','valid_chars','via_chars','group_required','group_N'];
                 fields.forEach(f => { if(s[f] !== undefined && document.getElementById(f)) document.getElementById(f).value = s[f]; });
 
                 const checks = ['allow_daku','allow_handaku','char_limit_mode','auto_recovery','rt','use_shift','exclude_conjugate','big_small_mode'];
                 checks.forEach(f => { if(s[f] !== undefined && document.getElementById(f)) document.getElementById(f).checked = s[f]; });
+
+                if (s.via_mode) {
+                    const vm = document.querySelector(`input[name="via_mode"][value="${s.via_mode}"]`);
+                    if (vm) vm.checked = true;
+                }
+
+                if (s.group_mode) {
+                    const gm = document.querySelector(`input[name="group_mode"][value="${s.group_mode}"]`);
+                    if (gm) gm.checked = true;
+                }
+
+                if (s.shift_mode) {
+                    const sm = document.querySelector(`input[name="shift_mode"][value="${s.shift_mode}"]`);
+                    if (sm) sm.checked = true;
+                }
 
                 if (s.dark_mode) document.documentElement.classList.add('dark');
                 if (s.wordStates) wordStates = s.wordStates;
@@ -228,6 +279,9 @@
 
         function saveSettings() {
             const sm = document.querySelector('input[name="shift_mode"]:checked');
+            const vm = document.querySelector('input[name="via_mode"]:checked');
+            const gm = document.querySelector('input[name="group_mode"]:checked');
+
             localStorage.ultraSettings = JSON.stringify({
                 sw: document.getElementById('sw').value,
                 sc: document.getElementById('sc').value,
@@ -240,6 +294,14 @@
                 ml: document.getElementById('ml').value,
                 ks_abs: document.getElementById('ks_abs').value,
                 valid_chars: document.getElementById('valid_chars').value,
+
+                via_chars: document.getElementById('via_chars').value,
+                via_mode: vm ? vm.value : "both",
+
+                group_required: document.getElementById('group_required').value,
+                group_mode: gm ? gm.value : "min1",
+                group_N: document.getElementById('group_N').value,
+
                 use_shift: document.getElementById('use_shift').checked,
                 exclude_conjugate: document.getElementById('exclude_conjugate').checked,
                 allow_daku: document.getElementById('allow_daku').checked,
@@ -247,13 +309,13 @@
                 auto_recovery: document.getElementById('auto_recovery').checked,
                 char_limit_mode: document.getElementById('char_limit_mode').checked,
                 rt: document.getElementById('rt').checked,
+                big_small_mode: document.getElementById('big_small_mode').checked,
+
                 copy_limit: document.getElementById('copy_limit').value,
                 dark_mode: document.documentElement.classList.contains('dark'),
                 wordStates: wordStates,
-                shift_mode: sm ? sm.value : 'abs',
 
-                /* ★★★ 追加：大≠小（接続のみ） ★★★ */
-                big_small_mode: document.getElementById('big_small_mode').checked
+                shift_mode: sm ? sm.value : 'abs'
             });
         }
 
@@ -272,6 +334,14 @@
                 exclude_chars: document.getElementById('exc').value,
                 ban_start_chars: document.getElementById('bsc').value,
                 valid_chars: document.getElementById('valid_chars').value,
+
+                via_chars: document.getElementById('via_chars').value,
+                via_mode: document.querySelector('input[name="via_mode"]:checked').value,
+
+                group_required: document.getElementById('group_required').value,
+                group_mode: document.querySelector('input[name="group_mode"]:checked').value,
+                group_N: document.getElementById('group_N').value,
+
                 max_len: document.getElementById('ml').value,
                 use_shift: document.getElementById('use_shift').checked,
                 ks_abs: parseInt(document.getElementById('ks_abs').value),
@@ -282,9 +352,6 @@
                 char_limit_mode: document.getElementById('char_limit_mode').checked,
                 round_trip: document.getElementById('rt').checked,
                 exclude_conjugate: document.getElementById('exclude_conjugate').checked,
-
-                /* ★★★ 追加：大≠小（接続のみ） ★★★ */
-                big_small_mode: document.getElementById('big_small_mode').checked,
 
                 categories: Array.from(document.querySelectorAll('input[name="cat"]:checked')).map(c => c.value),
                 red_words: Object.keys(wordStates).filter(k => wordStates[k] === 'red'),
