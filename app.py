@@ -70,7 +70,7 @@ def get_dictionary(): return jsonify(DICTIONARY_MASTER)
 @app.route('/search', methods=['POST'])
 def search():
     d = request.json
-    timeout, limit, limit_en = int(d.get('timeout', 15)), int(d.get('limit', 1500)), d.get('limit_enabled', True)
+    timeout, limit, limit_en = int(d.get('timeout', 30)), int(d.get('limit', 15000)), d.get('limit_enabled', True)
     max_len, p_shift = int(d.get('max_len', 5)), int(d.get('pos_shift', 0))
     use_shift, ks_val, s_mode = d.get('use_shift', False), int(d.get('ks_abs', 1)), d.get('shift_mode', 'abs')
     
